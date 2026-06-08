@@ -9,6 +9,7 @@
     "singleQuote": true,
     "semiColons": true
   },
+  "nodeModulesDir": "auto",
   "imports": {
     "@supabase/supabase-js": "jsr:@supabase/supabase-js@2"
   }
