@@ -1,13 +1,11 @@
 name: Publish contracts
 
-# Publishes @yaycay/contracts to GitHub Packages when a contract version tag is
+# Publishes @alkazat/contracts to GitHub Packages when a contract version tag is
 # pushed, e.g. `contracts-v0.2.0`. Consumers (FE, Admin, Website) pin a range.
 #
-# IMPORTANT: GitHub Packages requires the npm scope to match the repository
-# owner's namespace. This package is `@yaycay/contracts`, so it must be hosted
-# under a `yaycay` org (github.com/yaycay/...). If the repo lives under a
-# different owner, either create the `yaycay` org and host the package there, or
-# change the package scope to match the owner. See README "Releasing the contract".
+# The package scope (@alkazat) matches the repository owner, as GitHub Packages
+# requires. Consumers authenticate to npm.pkg.github.com to install. See README
+# "Releasing the contract".
 
 on:
   push:
@@ -27,7 +25,7 @@ jobs:
         with:
           node-version: 20
           registry-url: 'https://npm.pkg.github.com'
-          scope: '@yaycay'
+          scope: '@alkazat'
       - run: npm install --no-audit --no-fund
       - name: Verify the tag matches the package version
         working-directory: packages/contracts
@@ -38,7 +36,7 @@ jobs:
             echo "Tag ${TAG_VERSION} does not match package.json version ${PKG_VERSION}." >&2
             exit 1
           fi
-          echo "Publishing @yaycay/contracts@${PKG_VERSION}"
+          echo "Publishing @alkazat/contracts@${PKG_VERSION}"
       - name: Validate the contract
         run: npm run contracts:validate
       - name: Build the package

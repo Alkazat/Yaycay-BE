@@ -1,5 +1,5 @@
 {
-  "name": "@yaycay/contracts",
+  "name": "@alkazat/contracts",
   "version": "0.2.0",
   "description": "The Yaycay handshake: OpenAPI 3.1 spec, generated TypeScript DTOs, and the canonical trip-content JSON schema. Owned by BE; consumed by FE, Admin and Website.",
   "license": "UNLICENSED",
