@@ -1,0 +1,644 @@
+openapi: 3.1.0
+info:
+  title: Yaycay API
+  version: 0.1.0
+  description: >
+    Yaycay back-end HTTP API. This is the v0.1 surface (Phase 0): the free-demo
+    generator, signup/lead capture, the 2FA verify step, and trip + trip-content
+    read/mutate. BE owns this contract; FE, Admin and Website are clients and
+    never call an endpoint or read a field that is not defined here.
+  contact:
+    name: Yaycay Back-End
+    url: https://github.com/Alkazat/Yaycay-BE
+servers:
+  - url: https://api.yaycay.ai
+    description: Production
+  - url: https://staging.api.yaycay.ai
+    description: Staging
+tags:
+  - name: demo
+    description: Free-demo hook (public, rate-limited).
+  - name: signup
+    description: Lead capture and Brevo sync.
+  - name: auth
+    description: Authentication helpers (2FA on every sign-in).
+  - name: trips
+    description: Trip CRUD and the canonical trip content payload.
+
+paths:
+  /demo/generate-day:
+    post:
+      operationId: generateDemoDay
+      tags: [demo]
+      summary: Generate one AI-built day for the free demo.
+      description: >
+        The hook. Produces a single day for one person with one quiz and a teaser
+        of the grown-ups guide. The single AI action is never advertised; it is
+        just how the demo generates. Public and rate-limited per IP.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DemoGenerateDayRequest'
+      responses:
+        '200':
+          description: A generated demo day plus a grown-ups teaser.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DemoGenerateDayResponse'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+
+  /signup/capture:
+    post:
+      operationId: captureSignup
+      tags: [signup]
+      summary: Create or update a lead and sync to Brevo.
+      description: >
+        Used by the Website funnel and the FE demo. Upserts a marketing_contacts
+        row with consent state and syncs to Brevo. Idempotent on email.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SignupCaptureRequest'
+      responses:
+        '200':
+          description: Lead captured (idempotent).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SignupCaptureResponse'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /auth/2fa/verify:
+    post:
+      operationId: verifyTwoFactor
+      tags: [auth]
+      summary: Verify the one-time email 2FA code.
+      description: >
+        Second factor required on every sign-in. Verifies the one-time code sent
+        to the account email; on success the session is fully established.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TwoFactorVerifyRequest'
+      responses:
+        '200':
+          description: Code verified; session elevated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TwoFactorVerifyResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /trips:
+    get:
+      operationId: listTrips
+      tags: [trips]
+      summary: List the caller's trips.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: The caller's trips (RLS scoped to the owning account).
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [trips]
+                properties:
+                  trips:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Trip'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      operationId: createTrip
+      tags: [trips]
+      summary: Create a trip.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTripRequest'
+      responses:
+        '201':
+          description: Trip created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Trip'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /trips/{tripId}:
+    parameters:
+      - $ref: '#/components/parameters/TripId'
+    get:
+      operationId: getTrip
+      tags: [trips]
+      summary: Get a trip by id.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: The trip.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Trip'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /trips/{tripId}/content:
+    parameters:
+      - $ref: '#/components/parameters/TripId'
+    get:
+      operationId: getTripContent
+      tags: [trips]
+      summary: Read the canonical trip content payload.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: The trip content.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TripContent'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      operationId: updateTripContent
+      tags: [trips]
+      summary: Mutate the trip content payload (validated against the schema).
+      description: >
+        Replaces the trip content with the supplied payload. The server validates
+        against schemas/trip-content.schema.json before persisting; invalid
+        payloads are rejected with 422.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TripContent'
+      responses:
+        '200':
+          description: Updated trip content.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TripContent'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Supabase-issued JWT. The database reads the JWT to enforce RLS.
+
+  parameters:
+    TripId:
+      name: tripId
+      in: path
+      required: true
+      schema:
+        type: string
+      description: Trip identifier.
+
+  responses:
+    ValidationError:
+      description: Request failed validation.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Unauthorized:
+      description: Missing or invalid credentials.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    NotFound:
+      description: Resource not found or not visible to the caller.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    RateLimited:
+      description: Too many requests.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+  schemas:
+    Error:
+      type: object
+      additionalProperties: false
+      required: [error]
+      properties:
+        error:
+          type: object
+          additionalProperties: false
+          required: [code, message]
+          properties:
+            code:
+              type: string
+              description: Stable machine-readable error code.
+            message:
+              type: string
+              description: Human-readable description.
+            details:
+              type: array
+              items:
+                type: string
+
+    Tier:
+      type: string
+      enum: [free, byo, ours]
+      description: How the trip was bought; drives entitlement and AI path.
+
+    TripStatus:
+      type: string
+      enum: [draft, planning, ready, holidaying, complete, archived]
+
+    Trip:
+      type: object
+      additionalProperties: false
+      required: [id, destination, tier, status]
+      properties:
+        id:
+          type: string
+        destination:
+          type: string
+        start_date:
+          type: string
+          format: date
+        end_date:
+          type: string
+          format: date
+        timezone:
+          type: string
+        currency:
+          type: string
+        tier:
+          $ref: '#/components/schemas/Tier'
+        status:
+          $ref: '#/components/schemas/TripStatus'
+        retention_expires_at:
+          type: string
+          format: date-time
+          description: When trip data is scheduled for disposal unless a keep-token extends it.
+        created_at:
+          type: string
+          format: date-time
+
+    CreateTripRequest:
+      type: object
+      additionalProperties: false
+      required: [destination]
+      properties:
+        destination:
+          type: string
+          minLength: 1
+        start_date:
+          type: string
+          format: date
+        end_date:
+          type: string
+          format: date
+        timezone:
+          type: string
+        currency:
+          type: string
+
+    DemoChildProfile:
+      type: object
+      additionalProperties: false
+      required: [name]
+      properties:
+        name:
+          type: string
+          minLength: 1
+        age:
+          type: integer
+          minimum: 0
+          maximum: 18
+        mode:
+          type: string
+          enum: [little, explorer, explorer_plus]
+          description: Kid explorer mode used to pick the variant block.
+        interests:
+          type: array
+          items:
+            type: string
+        dietary:
+          type: array
+          items:
+            type: string
+          description: Dietary flags surfaced to adults as safety notes.
+
+    DemoGenerateDayRequest:
+      type: object
+      additionalProperties: false
+      required: [destination, child]
+      properties:
+        destination:
+          type: string
+          minLength: 1
+        date:
+          type: string
+          format: date
+          description: Optional day to theme the plan around.
+        child:
+          $ref: '#/components/schemas/DemoChildProfile'
+
+    DemoGenerateDayResponse:
+      type: object
+      additionalProperties: false
+      required: [day, grownups_teaser]
+      properties:
+        day:
+          $ref: '#/components/schemas/Day'
+        grownups_teaser:
+          type: string
+          description: A short teaser of the grown-ups guide.
+        generated_by:
+          type: string
+          enum: [ai, fallback]
+          description: Whether a live model produced this or the deterministic fallback did.
+
+    SignupCaptureRequest:
+      type: object
+      additionalProperties: false
+      required: [email, consent]
+      properties:
+        email:
+          type: string
+          format: email
+        name:
+          type: string
+        source:
+          type: string
+          description: Funnel source, e.g. website-demo or fe-demo.
+        consent:
+          type: boolean
+          description: Marketing consent state captured at signup.
+        attributes:
+          type: object
+          additionalProperties: true
+          description: Optional free-form attributes synced to Brevo.
+
+    SignupCaptureResponse:
+      type: object
+      additionalProperties: false
+      required: [contact_id, status]
+      properties:
+        contact_id:
+          type: string
+        status:
+          type: string
+          enum: [created, updated]
+        synced_to_brevo:
+          type: boolean
+
+    TwoFactorVerifyRequest:
+      type: object
+      additionalProperties: false
+      required: [code]
+      properties:
+        code:
+          type: string
+          minLength: 4
+          maxLength: 10
+
+    TwoFactorVerifyResponse:
+      type: object
+      additionalProperties: false
+      required: [verified]
+      properties:
+        verified:
+          type: boolean
+
+    # ----- Canonical content model (mirrors schemas/trip-content.schema.json) -----
+    TripContent:
+      type: object
+      additionalProperties: false
+      required: [trip, days]
+      properties:
+        trip:
+          $ref: '#/components/schemas/TripContentHeader'
+        days:
+          type: array
+          items:
+            $ref: '#/components/schemas/Day'
+        grownups:
+          $ref: '#/components/schemas/Grownups'
+
+    TripContentHeader:
+      type: object
+      additionalProperties: false
+      required: [id, destination, start_date, end_date]
+      properties:
+        id:
+          type: string
+        destination:
+          type: string
+        start_date:
+          type: string
+          format: date
+        end_date:
+          type: string
+          format: date
+        timezone:
+          type: string
+        currency:
+          type: string
+
+    Day:
+      type: object
+      additionalProperties: false
+      required: [id, moments]
+      properties:
+        id:
+          type: string
+        date:
+          type: string
+          format: date
+        label:
+          type: string
+        summary:
+          type: string
+        moments:
+          type: array
+          items:
+            $ref: '#/components/schemas/Moment'
+
+    Moment:
+      type: object
+      additionalProperties: false
+      required: [id, slot, title, activities]
+      properties:
+        id:
+          type: string
+        slot:
+          type: string
+          enum: [morning, midday, afternoon, evening, night, anytime]
+        title:
+          type: string
+        time_hint:
+          type: string
+        location:
+          $ref: '#/components/schemas/Location'
+        activities:
+          type: array
+          items:
+            $ref: '#/components/schemas/Activity'
+
+    Location:
+      type: object
+      additionalProperties: false
+      required: [name]
+      properties:
+        name:
+          type: string
+        lat:
+          type: number
+        lng:
+          type: number
+
+    Activity:
+      type: object
+      additionalProperties: false
+      required: [id, kind, title]
+      properties:
+        id:
+          type: string
+        kind:
+          type: string
+          enum: [kid, shared, adult]
+        title:
+          type: string
+        body:
+          type: string
+        variants:
+          $ref: '#/components/schemas/Variants'
+        booking:
+          $ref: '#/components/schemas/Booking'
+        safety:
+          $ref: '#/components/schemas/Safety'
+        media_ref:
+          type: array
+          items:
+            type: string
+
+    Variants:
+      type: object
+      additionalProperties: false
+      properties:
+        little:
+          $ref: '#/components/schemas/VariantBlock'
+        explorer:
+          $ref: '#/components/schemas/VariantBlock'
+        explorer_plus:
+          $ref: '#/components/schemas/VariantBlock'
+
+    VariantBlock:
+      type: object
+      additionalProperties: false
+      properties:
+        body:
+          type: string
+        fact:
+          type: string
+        quiz:
+          $ref: '#/components/schemas/Quiz'
+
+    Quiz:
+      type: object
+      additionalProperties: false
+      required: [q, a]
+      properties:
+        q:
+          type: string
+        a:
+          type: string
+        options:
+          type: array
+          items:
+            type: string
+
+    Booking:
+      type: object
+      additionalProperties: false
+      required: [name]
+      properties:
+        name:
+          type: string
+        time:
+          type: string
+        ref:
+          type: string
+        notes:
+          type: string
+
+    Safety:
+      type: object
+      additionalProperties: false
+      properties:
+        note:
+          type: string
+        flags:
+          type: array
+          items:
+            type: string
+
+    Grownups:
+      type: object
+      additionalProperties: false
+      properties:
+        essentials:
+          type: string
+        checklist:
+          type: array
+          items:
+            type: string
+        transport:
+          type: string

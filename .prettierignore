@@ -1,0 +1,6 @@
+node_modules
+dist
+build
+packages/contracts/dist
+coverage
+*.md

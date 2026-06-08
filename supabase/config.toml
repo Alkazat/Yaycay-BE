@@ -1,0 +1,40 @@
+# Yaycay back-end - local Supabase configuration.
+# `develop` deploys to the staging project; `main` to prod. Migrations run on deploy.
+project_id = "yaycay-be"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[db]
+port = 54322
+shadow_port = 54320
+major_version = 15
+
+[db.pooler]
+enabled = false
+
+[studio]
+enabled = true
+port = 54323
+
+[auth]
+enabled = true
+site_url = "http://localhost:3000"
+# Email magic-link plus a one-time 2FA code on every sign-in (see 00-MODEL-CONTEXT.md sec 6).
+[auth.email]
+enable_signup = true
+enable_confirmations = true
+
+[edge_runtime]
+enabled = true
+# Functions are served per-directory under supabase/functions.
+
+[functions.demo-generate-day]
+verify_jwt = false
+
+[functions.signup-capture]
+verify_jwt = false

@@ -1,0 +1,192 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://yaycay.ai/schemas/trip-content.schema.json",
+  "title": "TripContent",
+  "description": "Canonical trip payload: Holiday -> Days -> Moments -> Activities. One per trip. Per-profile differences are tagging, not duplication: mode/age variants live as tagged blocks selected at render.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["trip", "days"],
+  "properties": {
+    "trip": { "$ref": "#/$defs/tripHeader" },
+    "days": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/day" }
+    },
+    "grownups": { "$ref": "#/$defs/grownups" }
+  },
+  "$defs": {
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "description": "Stable identifier for an element within the trip content."
+    },
+    "isoDate": {
+      "type": "string",
+      "format": "date",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+    },
+    "tripHeader": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "destination", "start_date", "end_date"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "destination": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "start_date": { "$ref": "#/$defs/isoDate" },
+        "end_date": { "$ref": "#/$defs/isoDate" },
+        "timezone": {
+          "type": "string",
+          "description": "IANA timezone name, e.g. Asia/Singapore."
+        },
+        "currency": {
+          "type": "string",
+          "pattern": "^[A-Z]{3}$",
+          "description": "ISO 4217 currency code."
+        }
+      }
+    },
+    "day": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "moments"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "date": { "$ref": "#/$defs/isoDate" },
+        "label": { "type": "string", "maxLength": 120 },
+        "summary": { "type": "string", "maxLength": 2000 },
+        "moments": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/moment" }
+        }
+      }
+    },
+    "moment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "slot", "title", "activities"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "slot": {
+          "type": "string",
+          "enum": ["morning", "midday", "afternoon", "evening", "night", "anytime"]
+        },
+        "title": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "time_hint": {
+          "type": "string",
+          "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+          "description": "Soft 24h time hint HH:MM; not a hard booking."
+        },
+        "location": { "$ref": "#/$defs/location" },
+        "activities": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/activity" }
+        }
+      }
+    },
+    "location": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "lat": { "type": "number", "minimum": -90, "maximum": 90 },
+        "lng": { "type": "number", "minimum": -180, "maximum": 180 }
+      }
+    },
+    "activity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "kind", "title"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "kind": {
+          "type": "string",
+          "enum": ["kid", "shared", "adult"],
+          "description": "Routes the activity to the kid view, the shared view, or the grown-ups view."
+        },
+        "title": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "body": { "type": "string", "maxLength": 4000 },
+        "variants": { "$ref": "#/$defs/variants" },
+        "booking": { "$ref": "#/$defs/booking" },
+        "safety": { "$ref": "#/$defs/safety" },
+        "media_ref": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "References to media rows (ids); resolved to signed URLs at read time."
+        }
+      }
+    },
+    "variants": {
+      "type": "object",
+      "description": "Mode/age-tagged renderings. The renderer picks the block by the active profile.",
+      "additionalProperties": false,
+      "properties": {
+        "little": { "$ref": "#/$defs/variantBlock" },
+        "explorer": { "$ref": "#/$defs/variantBlock" },
+        "explorer_plus": { "$ref": "#/$defs/variantBlock" }
+      }
+    },
+    "variantBlock": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "body": { "type": "string", "maxLength": 4000 },
+        "fact": { "type": "string", "maxLength": 1000 },
+        "quiz": { "$ref": "#/$defs/quiz" }
+      }
+    },
+    "quiz": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["q", "a"],
+      "properties": {
+        "q": { "type": "string", "minLength": 1, "maxLength": 500 },
+        "a": { "type": "string", "minLength": 1, "maxLength": 500 },
+        "options": {
+          "type": "array",
+          "items": { "type": "string", "maxLength": 200 },
+          "maxItems": 6
+        }
+      }
+    },
+    "booking": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "time": {
+          "type": "string",
+          "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$"
+        },
+        "ref": { "type": "string", "maxLength": 200 },
+        "notes": { "type": "string", "maxLength": 1000 }
+      }
+    },
+    "safety": {
+      "type": "object",
+      "description": "Dietary/medical flags surfaced to adults. Sourced from profile data.",
+      "additionalProperties": false,
+      "properties": {
+        "note": { "type": "string", "maxLength": 1000 },
+        "flags": {
+          "type": "array",
+          "items": { "type": "string", "maxLength": 120 }
+        }
+      }
+    },
+    "grownups": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "essentials": { "type": "string", "maxLength": 4000 },
+        "checklist": {
+          "type": "array",
+          "items": { "type": "string", "maxLength": 200 }
+        },
+        "transport": { "type": "string", "maxLength": 4000 }
+      }
+    }
+  }
+}
