@@ -1,6 +1,6 @@
 // Structural validation for trip_content on the edit-then-publish path. This
 // mirrors the required-field rules of schemas/trip-content.schema.json. The
-// canonical JSON schema lives in @yaycay/contracts; this is the runtime guard
+// canonical JSON schema lives in @alkazat/contracts; this is the runtime guard
 // for writes that the edge runtime can execute without bundling the schema.
 
 const SLOTS = ['morning', 'midday', 'afternoon', 'evening', 'night', 'anytime'];

@@ -1,4 +1,4 @@
-// Local mirror of the @yaycay/contracts content types. The Deno edge runtime
+// Local mirror of the @alkazat/contracts content types. The Deno edge runtime
 // does not resolve the workspace package, so the slice the functions need is
 // duplicated here. Keep in lockstep with packages/contracts/src/trip-content.ts.
 

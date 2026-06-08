@@ -4,7 +4,7 @@ The platform core for Yaycay, the family holiday companion: the HTTP API, the
 database and Row-Level Security, the model-agnostic AI harness, the BYO-AI MCP
 endpoint, Stripe, and the Brevo sync. Thin, serverless, scales to zero.
 
-**This thread owns the shared contract** (`@yaycay/contracts`). FE, Admin and
+**This thread owns the shared contract** (`@alkazat/contracts`). FE, Admin and
 Website depend on what we publish, so the contract is the primary deliverable
 alongside the code. See [`docs/00-MODEL-CONTEXT.md`](docs/00-MODEL-CONTEXT.md)
 (read first) and [`docs/02-BACKEND-HANDOFF.md`](docs/02-BACKEND-HANDOFF.md).
@@ -30,7 +30,7 @@ AAL2 check reads the JWT `aal` claim; wire real MFA enrolment in Phase 1.
 ## Layout
 
 ```
-packages/contracts/      @yaycay/contracts: openapi.yaml, schemas/, src/ (DTOs)
+packages/contracts/      @alkazat/contracts: openapi.yaml, schemas/, src/ (DTOs)
 supabase/migrations/     0001 identity, 0002 app core, 0003 RLS, 0004 admin v0.2
 supabase/functions/      Deno edge functions (demo, signup, admin) + _shared
 supabase/tests/          pgTAP RLS isolation + admin-gating tests
@@ -42,7 +42,7 @@ docs/                    model context + backend handoff
 ```bash
 npm install
 npm run contracts:validate   # parse OpenAPI + compile the JSON schema
-npm run build                # build @yaycay/contracts
+npm run build                # build @alkazat/contracts
 npm run lint && npm run typecheck && npm test
 ```
 
@@ -68,7 +68,7 @@ bumps the version, and publishes. The current version is exported as
 
 ### Releasing the contract
 
-`@yaycay/contracts` publishes to GitHub Packages from
+`@alkazat/contracts` publishes to GitHub Packages from
 `.github/workflows/publish-contracts.yml`, triggered by a version tag:
 
 ```bash
@@ -81,13 +81,12 @@ The workflow checks the tag matches `package.json`, validates and builds the
 package, and runs `npm publish`. Consumers install with an `.npmrc`:
 
 ```
-@yaycay:registry=https://npm.pkg.github.com
+@alkazat:registry=https://npm.pkg.github.com
+//npm.pkg.github.com/:_authToken=${GITHUB_TOKEN}
 ```
 
-**Scope/owner requirement:** GitHub Packages requires the npm scope to match the
-repository owner. `@yaycay/contracts` must therefore be hosted under a `yaycay`
-GitHub org. If the repo stays under a different owner, create that org (or change
-the package scope to match the owner) before the first publish will succeed.
+The package scope (`@alkazat`) matches the repository owner, which is what
+GitHub Packages requires for publishing.
 
 
 ## Conventions

@@ -2,7 +2,7 @@
  * Admin-scoped DTOs for the `/admin/*` surface (contract v0.2).
  *
  * Authored from the Admin thread's contract change request. The Admin app
- * mirrors these verbatim until it pins `@yaycay/contracts@^0.2.0` and deletes
+ * mirrors these verbatim until it pins `@alkazat/contracts@^0.2.0` and deletes
  * its local `src/lib/contracts/types.ts` stand-ins.
  *
  * Auth for every `/admin/*` endpoint: a Supabase JWT with `role=admin` and AAL2
