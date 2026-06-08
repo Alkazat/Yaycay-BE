@@ -1,0 +1,60 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  node:
+    name: Contract, lint, types, tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm install --no-audit --no-fund
+      - name: Validate the contract (OpenAPI + JSON schema)
+        run: npm run contracts:validate
+      - name: Build packages
+        run: npm run build
+      - name: Lint
+        run: npm run lint
+      - name: Format check
+        run: npm run format:check
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Unit tests
+        run: npm test
+
+  deno:
+    name: Edge functions typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - name: Type-check edge functions
+        run: deno check supabase/functions/**/*.ts
+
+  database:
+    name: Migrations + RLS (pgTAP)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - name: Start local Supabase
+        run: supabase start
+      - name: Run pgTAP RLS isolation tests
+        run: supabase test db
+      - name: Stop local Supabase
+        if: always()
+        run: supabase stop

@@ -1,0 +1,45 @@
+{
+  "name": "@yaycay/contracts",
+  "version": "0.1.0",
+  "description": "The Yaycay handshake: OpenAPI 3.1 spec, generated TypeScript DTOs, and the canonical trip-content JSON schema. Owned by BE; consumed by FE, Admin and Website.",
+  "license": "UNLICENSED",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./openapi.yaml": "./openapi.yaml",
+    "./schemas/trip-content.schema.json": "./schemas/trip-content.schema.json"
+  },
+  "files": [
+    "dist",
+    "openapi.yaml",
+    "schemas"
+  ],
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Alkazat/Yaycay-BE.git",
+    "directory": "packages/contracts"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "gen:openapi-types": "openapi-typescript ./openapi.yaml -o ./src/openapi.generated.d.ts",
+    "gen": "npm run gen:openapi-types",
+    "validate": "node ./scripts/validate.mjs",
+    "prepublishOnly": "npm run build"
+  },
+  "devDependencies": {
+    "@apidevtools/swagger-parser": "^10.1.0",
+    "ajv": "^8.17.1",
+    "ajv-formats": "^3.0.1",
+    "openapi-typescript": "^7.4.2",
+    "typescript": "^5.6.3",
+    "yaml": "^2.6.0"
+  }
+}
