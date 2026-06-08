@@ -1,0 +1,50 @@
+name: Publish contracts
+
+# Publishes @yaycay/contracts to GitHub Packages when a contract version tag is
+# pushed, e.g. `contracts-v0.2.0`. Consumers (FE, Admin, Website) pin a range.
+#
+# IMPORTANT: GitHub Packages requires the npm scope to match the repository
+# owner's namespace. This package is `@yaycay/contracts`, so it must be hosted
+# under a `yaycay` org (github.com/yaycay/...). If the repo lives under a
+# different owner, either create the `yaycay` org and host the package there, or
+# change the package scope to match the owner. See README "Releasing the contract".
+
+on:
+  push:
+    tags:
+      - 'contracts-v*'
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: 'https://npm.pkg.github.com'
+          scope: '@yaycay'
+      - run: npm install --no-audit --no-fund
+      - name: Verify the tag matches the package version
+        working-directory: packages/contracts
+        run: |
+          PKG_VERSION="$(node -p "require('./package.json').version")"
+          TAG_VERSION="${GITHUB_REF_NAME#contracts-v}"
+          if [ "$PKG_VERSION" != "$TAG_VERSION" ]; then
+            echo "Tag ${TAG_VERSION} does not match package.json version ${PKG_VERSION}." >&2
+            exit 1
+          fi
+          echo "Publishing @yaycay/contracts@${PKG_VERSION}"
+      - name: Validate the contract
+        run: npm run contracts:validate
+      - name: Build the package
+        run: npm run build
+      - name: Publish to GitHub Packages
+        working-directory: packages/contracts
+        run: npm publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
