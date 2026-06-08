@@ -9,29 +9,31 @@ Website depend on what we publish, so the contract is the primary deliverable
 alongside the code. See [`docs/00-MODEL-CONTEXT.md`](docs/00-MODEL-CONTEXT.md)
 (read first) and [`docs/02-BACKEND-HANDOFF.md`](docs/02-BACKEND-HANDOFF.md).
 
-## Status: Phase 0
+## Status: Phase 0 + admin contract v0.2
 
-The free-demo hook, lead capture, the core data model with RLS, and contract
-`v0.1` published for the other threads to mock against.
+The free-demo hook, lead capture, the core data model with RLS, contract `v0.1`,
+and the admin-scoped contract `v0.2` (plus its schema) for the Admin thread.
 
 | Area | Delivered |
 |---|---|
-| Contract | `openapi.yaml` (3.1), generated TS DTOs + `TripContent`, `schemas/trip-content.schema.json`, semver |
-| Schema + RLS | `accounts` (isolated identity), `child_profiles`, `trips`, `trip_content`, `trip_progress`, `ai_jobs`, `marketing_contacts`; RLS forced on every customer table; pgTAP isolation test |
+| Contract | `openapi.yaml` (3.1), TS DTOs + `TripContent`, `schemas/trip-content.schema.json`, semver. **v0.2** adds the `/admin/*` surface (prompts, models, jobs, trips/customers, content review, commerce) with problem+json and cursor pagination |
+| Schema + RLS | `accounts` (isolated identity), `child_profiles`, `trips`, `trip_content`, `trip_progress`, `ai_jobs`, `marketing_contacts`; **v0.2** adds `prompts`, `model_routes`, `content_review`, `admin_audit_log`, `products`, `purchases`. RLS forced on every customer table; pgTAP isolation + admin-gating tests |
 | Endpoints | `POST /demo/generate-day` (AI harness + deterministic fallback), `POST /signup/capture` (Brevo sync) |
 | CI | contract validation, lint, typecheck, Vitest, Deno typecheck, pgTAP |
 
-Phase 1 (auth, trip CRUD, our-AI chat, ingest + daily cap, journal/media,
-Stripe, MCP) and Phase 2 (admin, retention/disposal, catalogue) are not yet
-built. See the handoff for the full checklist.
+The `/admin/*` **handlers** are not yet implemented (v0.2 ships the contract +
+migrations so Admin can pin `^0.2.0`). Phase 1 (auth, trip CRUD, our-AI chat,
+ingest + daily cap, journal/media, Stripe, MCP) and the rest of Phase 2 (admin
+endpoint handlers, retention/disposal) are still to come. AAL2 (MFA) gating for
+`/admin/*` is enforced at the API boundary, not in SQL.
 
 ## Layout
 
 ```
 packages/contracts/      @yaycay/contracts: openapi.yaml, schemas/, src/ (DTOs)
-supabase/migrations/     0001 identity, 0002 app core, 0003 RLS
+supabase/migrations/     0001 identity, 0002 app core, 0003 RLS, 0004 admin v0.2
 supabase/functions/      Deno edge functions + _shared harness/brevo/http
-supabase/tests/          pgTAP RLS isolation tests
+supabase/tests/          pgTAP RLS isolation + admin-gating tests
 docs/                    model context + backend handoff
 ```
 
