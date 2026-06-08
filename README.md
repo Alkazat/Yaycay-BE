@@ -66,6 +66,30 @@ consuming thread that needs a new field opens a PR here; BE implements it,
 bumps the version, and publishes. The current version is exported as
 `CONTRACT_VERSION`.
 
+### Releasing the contract
+
+`@yaycay/contracts` publishes to GitHub Packages from
+`.github/workflows/publish-contracts.yml`, triggered by a version tag:
+
+```bash
+# bump packages/contracts/package.json (e.g. 0.2.0), merge, then:
+git tag contracts-v0.2.0
+git push origin contracts-v0.2.0
+```
+
+The workflow checks the tag matches `package.json`, validates and builds the
+package, and runs `npm publish`. Consumers install with an `.npmrc`:
+
+```
+@yaycay:registry=https://npm.pkg.github.com
+```
+
+**Scope/owner requirement:** GitHub Packages requires the npm scope to match the
+repository owner. `@yaycay/contracts` must therefore be hosted under a `yaycay`
+GitHub org. If the repo stays under a different owner, create that org (or change
+the package scope to match the owner) before the first publish will succeed.
+
+
 ## Conventions
 
 TypeScript everywhere, Node 20. `develop` -> staging, `main` -> production;
