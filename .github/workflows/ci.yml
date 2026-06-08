@@ -42,7 +42,7 @@ jobs:
           deno-version: v2.x
       - name: Type-check edge functions
         working-directory: supabase/functions
-        run: deno check demo-generate-day/index.ts signup-capture/index.ts
+        run: deno check demo-generate-day/index.ts signup-capture/index.ts admin/index.ts
 
   database:
     name: Migrations + RLS (pgTAP)

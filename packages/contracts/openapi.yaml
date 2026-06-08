@@ -1,12 +1,14 @@
 openapi: 3.1.0
 info:
   title: Yaycay API
-  version: 0.1.0
+  version: 0.2.0
   description: >
-    Yaycay back-end HTTP API. This is the v0.1 surface (Phase 0): the free-demo
+    Yaycay back-end HTTP API. The v0.1 surface (Phase 0) is the free-demo
     generator, signup/lead capture, the 2FA verify step, and trip + trip-content
-    read/mutate. BE owns this contract; FE, Admin and Website are clients and
-    never call an endpoint or read a field that is not defined here.
+    read/mutate. v0.2 adds the admin-scoped `/admin/*` surface (prompts, models,
+    jobs, trips/customers, content review, commerce). BE owns this contract; FE,
+    Admin and Website are clients and never call an endpoint or read a field that
+    is not defined here.
   contact:
     name: Yaycay Back-End
     url: https://github.com/Alkazat/Yaycay-BE
@@ -24,6 +26,11 @@ tags:
     description: Authentication helpers (2FA on every sign-in).
   - name: trips
     description: Trip CRUD and the canonical trip content payload.
+  - name: admin
+    description: >
+      Admin-scoped, off-domain surface. Every endpoint requires a Supabase JWT
+      with role=admin and AAL2 (verified MFA); non-admin or non-MFA callers get
+      403. Every call is audited server-side. Errors are RFC 9457 problem+json.
 
 paths:
   /demo/generate-day:
@@ -225,6 +232,570 @@ paths:
         '422':
           $ref: '#/components/responses/ValidationError'
 
+  # ===== Admin-scoped surface (v0.2). All require role=admin + AAL2. =====
+
+  /admin/prompts:
+    get:
+      operationId: listPrompts
+      tags: [admin]
+      summary: List prompts (latest per task, or all versions with ?task=).
+      security:
+        - adminAuth: []
+      parameters:
+        - { name: task, in: query, schema: { type: string } }
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: A page of prompts.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PromptPage'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      operationId: createPrompt
+      tags: [admin]
+      summary: Create a new prompt for a task.
+      security:
+        - adminAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePromptRequest'
+      responses:
+        '201':
+          description: Created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Prompt'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/prompts/{id}:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    get:
+      operationId: getPrompt
+      tags: [admin]
+      summary: Get a single prompt version.
+      security:
+        - adminAuth: []
+      responses:
+        '200':
+          description: The prompt version.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Prompt'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/ProblemNotFound'
+
+  /admin/prompts/{id}/versions:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    post:
+      operationId: createPromptVersion
+      tags: [admin]
+      summary: Create a new (immutable) version of a prompt.
+      security:
+        - adminAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePromptVersionRequest'
+      responses:
+        '201':
+          description: New version created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Prompt'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/prompts/{id}/activate:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    post:
+      operationId: activatePrompt
+      tags: [admin]
+      summary: Activate a version for its task (deactivates the prior active one).
+      security:
+        - adminAuth: []
+      responses:
+        '200':
+          description: Activated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Prompt'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/prompts/{id}/diff:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    get:
+      operationId: diffPrompt
+      tags: [admin]
+      summary: Diff two versions of a prompt.
+      security:
+        - adminAuth: []
+      parameters:
+        - { name: from, in: query, required: true, schema: { type: integer } }
+        - { name: to, in: query, required: true, schema: { type: integer } }
+      responses:
+        '200':
+          description: A unified diff between the two versions.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [from, to, diff]
+                properties:
+                  from: { type: integer }
+                  to: { type: integer }
+                  diff: { type: string }
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/models:
+    get:
+      operationId: listModels
+      tags: [admin]
+      summary: Available models and capabilities.
+      security:
+        - adminAuth: []
+      responses:
+        '200':
+          description: Available models.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: false
+                      required: [model]
+                      properties:
+                        model: { $ref: '#/components/schemas/AiModel' }
+                        vision: { type: boolean }
+                        streaming: { type: boolean }
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/model-routes:
+    get:
+      operationId: listModelRoutes
+      tags: [admin]
+      summary: Per-task default model and overrides.
+      security:
+        - adminAuth: []
+      responses:
+        '200':
+          description: Model routes.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ModelRoute'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/model-routes/{task}:
+    parameters:
+      - { name: task, in: path, required: true, schema: { type: string } }
+    put:
+      operationId: setModelRoute
+      tags: [admin]
+      summary: Set the default model or override for a task.
+      security:
+        - adminAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SetModelRouteRequest'
+      responses:
+        '200':
+          description: Updated route.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModelRoute'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/jobs:
+    get:
+      operationId: listJobs
+      tags: [admin]
+      summary: List AI jobs; filter by status, kind, trip.
+      security:
+        - adminAuth: []
+      parameters:
+        - { name: status, in: query, schema: { $ref: '#/components/schemas/AiJobStatus' } }
+        - { name: kind, in: query, schema: { $ref: '#/components/schemas/AiJobKind' } }
+        - { name: tripId, in: query, schema: { type: string } }
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: A page of jobs.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AiJobPage'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/jobs/{id}:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    get:
+      operationId: getJob
+      tags: [admin]
+      summary: Job detail incl. model, prompt version used, and error.
+      security:
+        - adminAuth: []
+      responses:
+        '200':
+          description: The job.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AiJob'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/ProblemNotFound'
+
+  /admin/jobs/{id}/retry:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    post:
+      operationId: retryJob
+      tags: [admin]
+      summary: Re-enqueue a failed job (writes a new ai_jobs row; cap enforced).
+      security:
+        - adminAuth: []
+      responses:
+        '202':
+          description: Re-enqueued.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AiJob'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/jobs/cap:
+    get:
+      operationId: getJobCap
+      tags: [admin]
+      summary: Daily-cap usage for a trip (cap ~10/day).
+      security:
+        - adminAuth: []
+      parameters:
+        - { name: tripId, in: query, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: Cap usage.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobCapUsage'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/trips:
+    get:
+      operationId: searchTrips
+      tags: [admin]
+      summary: Search trips by customer email, destination, or id.
+      security:
+        - adminAuth: []
+      parameters:
+        - { name: query, in: query, schema: { type: string } }
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: A page of trip summaries.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TripSummaryPage'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/trips/{id}:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    get:
+      operationId: getTripSummary
+      tags: [admin]
+      summary: Trip summary, tier, and retention.
+      security:
+        - adminAuth: []
+      responses:
+        '200':
+          description: Trip summary.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TripSummary'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/ProblemNotFound'
+
+  /admin/trips/{id}/content:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    get:
+      operationId: getAdminTripContent
+      tags: [admin]
+      summary: Canonical trip_content for inspection.
+      security:
+        - adminAuth: []
+      responses:
+        '200':
+          description: The trip content.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TripContent'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/ProblemNotFound'
+
+  /admin/trips/{id}/profiles:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    get:
+      operationId: getAdminTripProfiles
+      tags: [admin]
+      summary: Child profiles for the trip.
+      security:
+        - adminAuth: []
+      responses:
+        '200':
+          description: Child profiles.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AdminChildProfile'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/trips/{id}/progress:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    get:
+      operationId: getAdminTripProgress
+      tags: [admin]
+      summary: Per-profile progress for the trip.
+      security:
+        - adminAuth: []
+      responses:
+        '200':
+          description: Per-profile progress.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AdminProgress'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/customers:
+    get:
+      operationId: searchCustomers
+      tags: [admin]
+      summary: Account lookup, entitlement, retention.
+      security:
+        - adminAuth: []
+      parameters:
+        - { name: query, in: query, schema: { type: string } }
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: A page of customer summaries.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomerSummaryPage'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/customers/{id}/deletion-request:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    post:
+      operationId: requestCustomerDeletion
+      tags: [admin]
+      summary: Record or honour a data-deletion request.
+      security:
+        - adminAuth: []
+      responses:
+        '200':
+          description: Deletion request recorded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomerSummary'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/content-review:
+    get:
+      operationId: listContentReview
+      tags: [admin]
+      summary: Generated content awaiting review.
+      security:
+        - adminAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: A page of content-review items.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContentReviewPage'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/content-review/{tripId}/approve:
+    parameters:
+      - { name: tripId, in: path, required: true, schema: { type: string } }
+    post:
+      operationId: approveContent
+      tags: [admin]
+      summary: Approve generated content for publish.
+      security:
+        - adminAuth: []
+      responses:
+        '200':
+          description: Approved.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContentReviewItem'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/content-review/{tripId}/edit:
+    parameters:
+      - { name: tripId, in: path, required: true, schema: { type: string } }
+    post:
+      operationId: editContent
+      tags: [admin]
+      summary: Edit then publish (audited).
+      security:
+        - adminAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TripContent'
+      responses:
+        '200':
+          description: Edited and published.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContentReviewItem'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /admin/products:
+    get:
+      operationId: listProducts
+      tags: [admin]
+      summary: Catalogue (price id, name, amount).
+      security:
+        - adminAuth: []
+      responses:
+        '200':
+          description: Catalogue.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ProductSummary'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/purchases:
+    get:
+      operationId: listPurchases
+      tags: [admin]
+      summary: Purchases and entitlement (from the Stripe webhook).
+      security:
+        - adminAuth: []
+      parameters:
+        - { name: query, in: query, schema: { type: string } }
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: A page of purchases.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PurchaseSummaryPage'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
 components:
   securitySchemes:
     bearerAuth:
@@ -232,6 +803,13 @@ components:
       scheme: bearer
       bearerFormat: JWT
       description: Supabase-issued JWT. The database reads the JWT to enforce RLS.
+    adminAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: >
+        Supabase JWT with role=admin and AAL2 (verified MFA). The server rejects
+        non-admin or non-MFA callers with 403. Every call is audited.
 
   parameters:
     TripId:
@@ -241,6 +819,30 @@ components:
       schema:
         type: string
       description: Trip identifier.
+    Id:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+      description: Resource identifier.
+    Cursor:
+      name: cursor
+      in: query
+      required: false
+      schema:
+        type: string
+      description: Opaque pagination cursor from a prior response's nextCursor.
+    Limit:
+      name: limit
+      in: query
+      required: false
+      schema:
+        type: integer
+        default: 50
+        minimum: 1
+        maximum: 200
+      description: Page size.
 
   responses:
     ValidationError:
@@ -267,6 +869,18 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/Error'
+    Forbidden:
+      description: Not an admin, or MFA (AAL2) not satisfied.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    ProblemNotFound:
+      description: Resource not found.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
 
   schemas:
     Error:
@@ -642,3 +1256,265 @@ components:
             type: string
         transport:
           type: string
+
+    # ===== Admin-scoped schemas (v0.2) =====
+    Problem:
+      type: object
+      description: RFC 9457 problem+json.
+      additionalProperties: true
+      required: [type, title, status]
+      properties:
+        type:
+          type: string
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+
+    AiModel:
+      type: string
+      enum: [claude-sonnet, claude-opus, gemini, openai]
+
+    AiJobKind:
+      type: string
+      enum: [generation, ingestion, chat]
+
+    AiJobStatus:
+      type: string
+      enum: [queued, running, succeeded, failed]
+
+    Prompt:
+      type: object
+      additionalProperties: false
+      required: [id, task, title, body, model, version, active, updatedAt, updatedBy]
+      properties:
+        id: { type: string }
+        task: { type: string }
+        title: { type: string }
+        body: { type: string }
+        model: { $ref: '#/components/schemas/AiModel' }
+        version: { type: integer }
+        active: { type: boolean }
+        updatedAt: { type: string, format: date-time }
+        updatedBy: { type: string }
+
+    CreatePromptRequest:
+      type: object
+      additionalProperties: false
+      required: [task, title, body, model]
+      properties:
+        task: { type: string }
+        title: { type: string }
+        body: { type: string }
+        model: { $ref: '#/components/schemas/AiModel' }
+
+    CreatePromptVersionRequest:
+      type: object
+      additionalProperties: false
+      required: [title, body, model]
+      properties:
+        title: { type: string }
+        body: { type: string }
+        model: { $ref: '#/components/schemas/AiModel' }
+
+    ModelRoute:
+      type: object
+      additionalProperties: false
+      required: [task, defaultModel]
+      properties:
+        task: { type: string }
+        defaultModel: { $ref: '#/components/schemas/AiModel' }
+        override: { $ref: '#/components/schemas/AiModel' }
+
+    SetModelRouteRequest:
+      type: object
+      additionalProperties: false
+      required: [defaultModel]
+      properties:
+        defaultModel: { $ref: '#/components/schemas/AiModel' }
+        override:
+          oneOf:
+            - { $ref: '#/components/schemas/AiModel' }
+            - { type: 'null' }
+
+    AiJob:
+      type: object
+      additionalProperties: false
+      required: [id, tripId, kind, status, model, promptVersion, createdAt]
+      properties:
+        id: { type: string }
+        tripId: { type: string }
+        kind: { $ref: '#/components/schemas/AiJobKind' }
+        status: { $ref: '#/components/schemas/AiJobStatus' }
+        model: { $ref: '#/components/schemas/AiModel' }
+        promptVersion: { type: integer }
+        createdAt: { type: string, format: date-time }
+        error: { type: string }
+
+    JobCapUsage:
+      type: object
+      additionalProperties: false
+      required: [tripId, date, used, limit, remaining]
+      properties:
+        tripId: { type: string }
+        date: { type: string, format: date }
+        used: { type: integer }
+        limit: { type: integer }
+        remaining: { type: integer }
+
+    TripSummary:
+      type: object
+      additionalProperties: false
+      required: [id, destination, ownerEmail, tier, status, startDate, endDate, retentionExpiresAt]
+      properties:
+        id: { type: string }
+        destination: { type: string }
+        ownerEmail: { type: string }
+        tier: { $ref: '#/components/schemas/Tier' }
+        status: { type: string }
+        startDate: { type: string, format: date }
+        endDate: { type: string, format: date }
+        retentionExpiresAt:
+          type: [string, 'null']
+          format: date-time
+
+    AdminChildProfile:
+      type: object
+      additionalProperties: false
+      required: [id, name]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        age: { type: integer }
+        mode:
+          type: string
+          enum: [little, explorer, explorer_plus]
+
+    AdminProgress:
+      type: object
+      additionalProperties: false
+      required: [profileId]
+      properties:
+        profileId: { type: [string, 'null'] }
+        activeMode:
+          type: [string, 'null']
+        doneItems:
+          type: array
+          items: { type: string }
+
+    CustomerSummary:
+      type: object
+      additionalProperties: false
+      required: [userId, email, tier, retentionExpiresAt, deletionRequested]
+      properties:
+        userId: { type: string }
+        email: { type: string }
+        tier:
+          oneOf:
+            - { $ref: '#/components/schemas/Tier' }
+            - { type: 'null' }
+        retentionExpiresAt:
+          type: [string, 'null']
+          format: date-time
+        deletionRequested: { type: boolean }
+
+    ProductSummary:
+      type: object
+      additionalProperties: false
+      required: [priceId, name, amountUsd]
+      properties:
+        priceId: { type: string }
+        name: { type: string }
+        amountUsd: { type: number }
+
+    PurchaseSummary:
+      type: object
+      additionalProperties: false
+      required: [id, ownerEmail, priceId, tier, amountUsd, createdAt]
+      properties:
+        id: { type: string }
+        ownerEmail: { type: string }
+        priceId: { type: string }
+        tier:
+          oneOf:
+            - { $ref: '#/components/schemas/Tier' }
+            - { type: 'null' }
+        amountUsd: { type: number }
+        createdAt: { type: string, format: date-time }
+
+    ContentReviewItem:
+      type: object
+      additionalProperties: false
+      required: [tripId, destination, status, generatedAt, reviewedAt, reviewedBy]
+      properties:
+        tripId: { type: string }
+        destination: { type: string }
+        status:
+          type: string
+          enum: [pending, approved, edited]
+        generatedAt: { type: string, format: date-time }
+        reviewedAt: { type: [string, 'null'], format: date-time }
+        reviewedBy: { type: [string, 'null'] }
+
+    # ----- Pagination envelopes -----
+    PromptPage:
+      type: object
+      additionalProperties: false
+      required: [items, nextCursor]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/Prompt' }
+        nextCursor: { type: [string, 'null'] }
+
+    AiJobPage:
+      type: object
+      additionalProperties: false
+      required: [items, nextCursor]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/AiJob' }
+        nextCursor: { type: [string, 'null'] }
+
+    TripSummaryPage:
+      type: object
+      additionalProperties: false
+      required: [items, nextCursor]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/TripSummary' }
+        nextCursor: { type: [string, 'null'] }
+
+    CustomerSummaryPage:
+      type: object
+      additionalProperties: false
+      required: [items, nextCursor]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/CustomerSummary' }
+        nextCursor: { type: [string, 'null'] }
+
+    ContentReviewPage:
+      type: object
+      additionalProperties: false
+      required: [items, nextCursor]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/ContentReviewItem' }
+        nextCursor: { type: [string, 'null'] }
+
+    PurchaseSummaryPage:
+      type: object
+      additionalProperties: false
+      required: [items, nextCursor]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/PurchaseSummary' }
+        nextCursor: { type: [string, 'null'] }
