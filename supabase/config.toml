@@ -5,7 +5,11 @@ project_id = "yaycay-be"
 [api]
 enabled = true
 port = 54321
-schemas = ["public", "graphql_public"]
+# `identity` is exposed so the service role can read accounts via PostgREST.
+# It stays isolated in practice: all privileges are revoked from anon and
+# authenticated, so only the service role (admin handlers) can reach it. In
+# production this is a dedicated Supabase project (IDENTITY_SUPABASE_URL).
+schemas = ["public", "graphql_public", "identity"]
 extra_search_path = ["public", "extensions"]
 max_rows = 1000
 
@@ -38,3 +42,8 @@ verify_jwt = false
 
 [functions.signup-capture]
 verify_jwt = false
+
+# Admin surface: the gateway verifies the JWT signature; the handler then
+# enforces role=admin + AAL2 (MFA) and audits every call.
+[functions.admin]
+verify_jwt = true

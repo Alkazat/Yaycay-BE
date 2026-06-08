@@ -110,6 +110,12 @@ create index if not exists purchases_user_id_idx on public.purchases (user_id);
 alter table identity.accounts
   add column if not exists deletion_requested_at timestamptz;
 
+-- The admin handlers read/write accounts through the service role over
+-- PostgREST. Grant the service role access to the isolated schema; anon and
+-- authenticated remain revoked (see 0001_identity.sql), so isolation holds.
+grant usage on schema identity to service_role;
+grant select, update on identity.accounts to service_role;
+
 -- ----- updated_at triggers -------------------------------------------------
 drop trigger if exists prompts_updated_at on public.prompts;
 create trigger prompts_updated_at
