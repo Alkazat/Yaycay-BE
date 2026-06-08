@@ -13,13 +13,21 @@ interface ReviewRow {
   generated_at: string;
   reviewed_at: string | null;
   reviewed_by: string | null;
-  trips?: { destination: string } | null;
+  // PostgREST infers an embedded to-one relation as an array; at runtime it is
+  // a single object. Accept both and normalise in destinationOf().
+  trips?: { destination: string } | { destination: string }[] | null;
+}
+
+function destinationOf(r: ReviewRow): string {
+  const t = r.trips;
+  if (Array.isArray(t)) return t[0]?.destination ?? '';
+  return t?.destination ?? '';
 }
 
 function toDto(r: ReviewRow) {
   return {
     tripId: r.trip_id,
-    destination: r.trips?.destination ?? '',
+    destination: destinationOf(r),
     status: r.status,
     generatedAt: r.generated_at,
     reviewedAt: r.reviewed_at,
