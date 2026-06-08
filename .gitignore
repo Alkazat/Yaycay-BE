@@ -1,0 +1,37 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Lockfile is intentionally not committed yet (Phase 0 scaffold); CI uses
+# `npm install`. Pin a committed lockfile + `npm ci` once deps stabilise.
+package-lock.json
+
+# Build output
+dist/
+build/
+*.tsbuildinfo
+
+# Generated contract artifacts
+packages/contracts/dist/
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+
+# Supabase local
+supabase/.branches/
+supabase/.temp/
+supabase/.env
+
+# Test / coverage
+coverage/
+.nyc_output/
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
+*.log
+npm-debug.log*
