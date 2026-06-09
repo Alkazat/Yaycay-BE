@@ -3,7 +3,7 @@
  * in `openapi.yaml`. Clients import these rather than redeclaring shapes.
  */
 
-import type { Day } from './trip-content.js';
+import type { Activity, Booking, Day, Moment, TripContent } from './trip-content.js';
 
 /** How a trip was bought; drives entitlement and the AI path. */
 export type Tier = 'free' | 'byo' | 'ours';
@@ -22,6 +22,33 @@ export interface Trip {
   /** When trip data is scheduled for disposal unless a keep-token extends it. */
   retention_expires_at?: string;
   created_at?: string;
+}
+
+/**
+ * The list view of a trip (`GET /trips` -> `{ trips: TripSummary[] }`). Adds the
+ * two derived fields the FE list needs on top of the stored trip columns:
+ * `day_count` (number of days in the content) and `data_kept` (whether the trip
+ * data is still retained, i.e. not past its disposal date).
+ */
+export interface TripSummary {
+  id: string;
+  destination: string;
+  start_date?: string;
+  end_date?: string;
+  timezone?: string;
+  currency?: string;
+  tier: Tier;
+  status: TripStatus;
+  retention_expires_at?: string;
+  /** Number of days currently planned in the trip content. */
+  day_count: number;
+  /** False once the trip is past its retention/disposal date. */
+  data_kept: boolean;
+  created_at?: string;
+}
+
+export interface ListTripsResponse {
+  trips: TripSummary[];
 }
 
 export interface CreateTripRequest {
@@ -88,4 +115,74 @@ export interface ApiErrorBody {
     message: string;
     details?: string[];
   };
+}
+
+// ===== AI surfaces (v0.3): planning chat + ingestion ========================
+
+/**
+ * A structured edit the AI harness emits. Applied to the current trip content,
+ * re-validated against the schema, then persisted. The op vocabulary is shared
+ * with the BYO-AI MCP tools, so one apply path serves our-AI and BYO-AI writes.
+ */
+export type PatchOp =
+  | { op: 'add_day'; day: Day }
+  | { op: 'set_day_summary'; day_id: string; summary: string }
+  | { op: 'add_moment'; day_id: string; moment: Moment }
+  | { op: 'add_activity'; day_id: string; moment_id: string; activity: Activity }
+  | { op: 'update_activity'; activity_id: string; set: Partial<Omit<Activity, 'id'>> }
+  | { op: 'move_activity'; activity_id: string; to_moment_id: string }
+  | { op: 'set_booking'; activity_id: string; booking: Booking };
+
+export interface TripContentPatch {
+  ops: PatchOp[];
+  /** Short human-readable note on what changed. */
+  note?: string;
+}
+
+export interface ChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+/** Request body for `POST /trips/{tripId}/plan/chat` (use-our-AI, tier=ours). */
+export interface PlanChatRequest {
+  messages: ChatMessage[];
+}
+
+/**
+ * The chat response is a `text/event-stream`. Each SSE `data:` frame is one of
+ * these JSON objects; the stream ends with a literal `data: [DONE]`.
+ */
+export type PlanChatEvent =
+  | { start: true; generated_by: 'ai' | 'fallback' }
+  | { delta: string }
+  | { done: true; job_id: string | null }
+  | { error: string };
+
+/** A photo of a receipt/booking/ticket for the vision model. */
+export interface IngestImage {
+  /** e.g. `image/jpeg`, `image/png`. */
+  media_type: string;
+  /** base64-encoded image bytes (no `data:` prefix). */
+  data: string;
+}
+
+/** Request body for `POST /trips/{tripId}/ingest` (paid: byo or ours). */
+export interface IngestRequest {
+  /** A note, pasted confirmation, or OCR text. One of text/image is required. */
+  text?: string;
+  image?: IngestImage;
+  /** Optional targeting hint. */
+  hint?: { day_id?: string; moment_id?: string };
+}
+
+export interface IngestResponse {
+  applied: boolean;
+  /** The ai_jobs ledger id for this ingestion (counts to the daily cap). */
+  job_id: string | null;
+  generated_by: 'ai' | 'fallback';
+  /** The patch the harness produced. */
+  patch: TripContentPatch;
+  /** The full trip content after applying the patch. */
+  content: TripContent;
 }

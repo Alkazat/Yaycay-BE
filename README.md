@@ -9,24 +9,30 @@ Website depend on what we publish, so the contract is the primary deliverable
 alongside the code. See [`docs/00-MODEL-CONTEXT.md`](docs/00-MODEL-CONTEXT.md)
 (read first) and [`docs/02-BACKEND-HANDOFF.md`](docs/02-BACKEND-HANDOFF.md).
 
-## Status: Phase 0 + admin contract v0.2
+## Status: Phase 0 + admin contract v0.2 + use-our-AI v0.3
 
 The free-demo hook, lead capture, the core data model with RLS, contract `v0.1`,
-and the admin-scoped contract `v0.2` (plus its schema) for the Admin thread.
+the admin-scoped contract `v0.2` (plus its schema) for the Admin thread, and the
+`v0.3` use-our-AI surfaces (streaming planning chat + structured ingestion).
 
 | Area | Delivered |
 |---|---|
-| Contract | `openapi.yaml` (3.1), TS DTOs + `TripContent`, `schemas/trip-content.schema.json`, semver. **v0.2** adds the `/admin/*` surface (prompts, models, jobs, trips/customers, content review, commerce) with problem+json and cursor pagination |
+| Contract | `openapi.yaml` (3.1), TS DTOs + `TripContent`, `schemas/trip-content.schema.json`, semver. **v0.2** adds the `/admin/*` surface (prompts, models, jobs, trips/customers, content review, commerce) with problem+json and cursor pagination. **v0.3** adds the planning-chat + ingestion DTOs and the shared `TripContentPatch` op vocabulary |
 | Schema + RLS | `accounts` (isolated identity), `child_profiles`, `trips`, `trip_content`, `trip_progress`, `ai_jobs`, `marketing_contacts`; **v0.2** adds `prompts`, `model_routes`, `content_review`, `admin_audit_log`, `products`, `purchases`. RLS forced on every customer table; pgTAP isolation + admin-gating tests |
-| Endpoints | Public: `POST /demo/generate-day`, `POST /signup/capture`. Customer (RLS-scoped): `GET/POST /trips`, `GET /trips/:id`, `GET/PATCH /trips/:id/content`, `POST /auth/2fa/verify`. Admin: the full `/admin/*` surface |
-| CI | contract validation, lint, typecheck, Vitest, Deno typecheck, pgTAP |
+| Endpoints | Public: `POST /demo/generate-day`, `POST /signup/capture`. Customer (RLS-scoped): `GET /trips` (`TripSummary[]`), `POST /trips`, `GET /trips/:id` (`TripContent`), `GET/PATCH /trips/:id/content`, `POST /auth/2fa/verify`, **`POST /trips/:id/plan/chat`** (SSE, tier=ours), **`POST /trips/:id/ingest`** (paid). Admin: the full `/admin/*` surface. See `docs/CONTRACT-STATUS.md` for the consumer-facing index |
+| CI | contract validation, lint, typecheck, Vitest, Deno typecheck + harness tests, pgTAP |
 
 The customer `trips` function runs as the caller (JWT forwarded) so RLS enforces
-ownership; content writes are schema-validated. `auth-2fa-verify` verifies the
-caller's TOTP factor via Supabase MFA (elevates to AAL2). The `admin` function
-enforces `role=admin` + AAL2, audits every call, and returns problem+json.
-Still to come: our-AI chat, ingest + daily cap, journal/media, Stripe, MCP, and
-the rest of Phase 2 (retention/disposal). Full MFA enrolment is Phase 1 too.
+ownership; content writes are schema-validated. The v0.3 AI surfaces live in the
+same function: `/plan/chat` streams a guarded Sonnet reply, `/ingest` turns a
+receipt/photo/note into a validated `TripContentPatch` applied to the content.
+Both log an `ai_jobs` row and honour the per-trip daily cap (default 10/day,
+shared with the admin meter). The harness defaults to Claude Sonnet and falls
+back to a deterministic path with no API key, so the surfaces work offline.
+`auth-2fa-verify` verifies the caller's TOTP factor via Supabase MFA (elevates
+to AAL2). The `admin` function enforces `role=admin` + AAL2, audits every call,
+and returns problem+json. Still to come: journal/media, Stripe, MCP, and the
+rest of Phase 2 (retention/disposal). Full MFA enrolment is Phase 1 too.
 
 ## Layout
 

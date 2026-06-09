@@ -130,7 +130,9 @@ export interface JobCapUsage {
   remaining: number;
 }
 
-export interface TripSummary {
+/** Admin-scoped trip list row (off-domain view, camelCase). Distinct from the
+ * customer-facing `TripSummary` in dto.ts. */
+export interface AdminTripSummary {
   id: string;
   destination: string;
   ownerEmail: string;
