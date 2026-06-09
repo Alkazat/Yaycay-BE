@@ -8,7 +8,7 @@
  */
 
 /** Semantic version of this contract. Clients pin a range, e.g. `^0.2.0`. */
-export const CONTRACT_VERSION = '0.2.0';
+export const CONTRACT_VERSION = '0.2.1';
 
 export * from './trip-content.js';
 export * from './dto.js';
