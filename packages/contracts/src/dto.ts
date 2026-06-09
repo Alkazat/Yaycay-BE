@@ -24,6 +24,33 @@ export interface Trip {
   created_at?: string;
 }
 
+/**
+ * The list view of a trip (`GET /trips` -> `{ trips: TripSummary[] }`). Adds the
+ * two derived fields the FE list needs on top of the stored trip columns:
+ * `day_count` (number of days in the content) and `data_kept` (whether the trip
+ * data is still retained, i.e. not past its disposal date).
+ */
+export interface TripSummary {
+  id: string;
+  destination: string;
+  start_date?: string;
+  end_date?: string;
+  timezone?: string;
+  currency?: string;
+  tier: Tier;
+  status: TripStatus;
+  retention_expires_at?: string;
+  /** Number of days currently planned in the trip content. */
+  day_count: number;
+  /** False once the trip is past its retention/disposal date. */
+  data_kept: boolean;
+  created_at?: string;
+}
+
+export interface ListTripsResponse {
+  trips: TripSummary[];
+}
+
 export interface CreateTripRequest {
   destination: string;
   start_date?: string;

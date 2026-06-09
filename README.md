@@ -19,7 +19,7 @@ the admin-scoped contract `v0.2` (plus its schema) for the Admin thread, and the
 |---|---|
 | Contract | `openapi.yaml` (3.1), TS DTOs + `TripContent`, `schemas/trip-content.schema.json`, semver. **v0.2** adds the `/admin/*` surface (prompts, models, jobs, trips/customers, content review, commerce) with problem+json and cursor pagination. **v0.3** adds the planning-chat + ingestion DTOs and the shared `TripContentPatch` op vocabulary |
 | Schema + RLS | `accounts` (isolated identity), `child_profiles`, `trips`, `trip_content`, `trip_progress`, `ai_jobs`, `marketing_contacts`; **v0.2** adds `prompts`, `model_routes`, `content_review`, `admin_audit_log`, `products`, `purchases`. RLS forced on every customer table; pgTAP isolation + admin-gating tests |
-| Endpoints | Public: `POST /demo/generate-day`, `POST /signup/capture`. Customer (RLS-scoped): `GET/POST /trips`, `GET /trips/:id`, `GET/PATCH /trips/:id/content`, `POST /auth/2fa/verify`, **`POST /trips/:id/plan/chat`** (SSE, tier=ours), **`POST /trips/:id/ingest`** (paid). Admin: the full `/admin/*` surface |
+| Endpoints | Public: `POST /demo/generate-day`, `POST /signup/capture`. Customer (RLS-scoped): `GET /trips` (`TripSummary[]`), `POST /trips`, `GET /trips/:id` (`TripContent`), `GET/PATCH /trips/:id/content`, `POST /auth/2fa/verify`, **`POST /trips/:id/plan/chat`** (SSE, tier=ours), **`POST /trips/:id/ingest`** (paid). Admin: the full `/admin/*` surface. See `docs/CONTRACT-STATUS.md` for the consumer-facing index |
 | CI | contract validation, lint, typecheck, Vitest, Deno typecheck + harness tests, pgTAP |
 
 The customer `trips` function runs as the caller (JWT forwarded) so RLS enforces

@@ -1,8 +1,8 @@
 // Customer trip API:
-//   GET   /trips                 list the caller's trips                (v0.1)
-//   POST  /trips                 create a trip                          (v0.1)
-//   GET   /trips/:id             get one trip                           (v0.1)
-//   GET   /trips/:id/content     read the canonical trip_content        (v0.1)
+//   GET   /trips                 list the caller's trips (TripSummary[])  (v0.4)
+//   POST  /trips                 create a trip                           (v0.1)
+//   GET   /trips/:id             read the canonical TripContent          (v0.4)
+//   GET   /trips/:id/content     read the canonical trip_content (alias) (v0.1)
 //   PATCH /trips/:id/content     replace trip_content (schema-validated) (v0.1)
 //   POST  /trips/:id/plan/chat   use-our-AI planning chat (SSE stream)  (v0.3, tier=ours)
 //   POST  /trips/:id/ingest      receipt/photo/note -> patched content  (v0.3, paid)
@@ -28,6 +28,24 @@ import { assertUnderCap, CapReachedError, finishJob, startJob } from '../_shared
 
 const TRIP_COLUMNS =
   'id, destination, start_date, end_date, timezone, currency, tier, status, retention_expires_at, created_at';
+
+// GET /trips returns TripSummary: the trip columns plus the content row so we
+// can derive day_count; PostgREST embeds the one-to-one trip_content.
+const SUMMARY_COLUMNS = `${TRIP_COLUMNS}, trip_content(content)`;
+
+// Shape a trips row (with embedded content) into a TripSummary.
+function toSummary(row: Record<string, unknown>): Record<string, unknown> {
+  const tc = row.trip_content as { content?: TripContent } | { content?: TripContent }[] | null;
+  const embedded = Array.isArray(tc) ? tc[0] : tc;
+  const days = embedded?.content?.days;
+  const retention = row.retention_expires_at as string | null;
+  const { trip_content: _drop, ...trip } = row;
+  return {
+    ...trip,
+    day_count: Array.isArray(days) ? days.length : 0,
+    data_kept: retention === null || new Date(retention).getTime() > Date.now(),
+  };
+}
 
 // Reduce the path to the part after `/trips`.
 function segments(url: URL): string[] {
@@ -80,10 +98,10 @@ Deno.serve(async (req) => {
       if (req.method === 'GET') {
         const { data, error: dbErr } = await client
           .from('trips')
-          .select(TRIP_COLUMNS)
+          .select(SUMMARY_COLUMNS)
           .order('created_at', { ascending: false });
         if (dbErr) throw new Error(dbErr.message);
-        return json({ trips: data ?? [] });
+        return json({ trips: (data ?? []).map((r) => toSummary(r as Record<string, unknown>)) });
       }
       if (req.method === 'POST') {
         const body = await readJson(req);
@@ -113,17 +131,21 @@ Deno.serve(async (req) => {
 
     const tripId = seg[0];
 
-    // /trips/:id
+    // /trips/:id - the canonical content read (TripContent, per contract §5).
     if (seg.length === 1) {
       if (req.method !== 'GET') return error('method_not_allowed', 'Use GET.', 405);
       const { data, error: dbErr } = await client
         .from('trips')
-        .select(TRIP_COLUMNS)
+        .select('id, trip_content(content)')
         .eq('id', tripId)
         .maybeSingle();
       if (dbErr) throw new Error(dbErr.message);
       if (!data) throw new NotFoundError();
-      return json(data);
+      const tc = (
+        data as { trip_content?: { content?: TripContent } | { content?: TripContent }[] }
+      ).trip_content;
+      const embedded = Array.isArray(tc) ? tc[0] : tc;
+      return json(embedded?.content ?? EMPTY_CONTENT);
     }
 
     // /trips/:id/content
