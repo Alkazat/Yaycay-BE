@@ -17,6 +17,27 @@ GitHub Packages registry for the `@alkazat` scope:
 @alkazat:registry=https://npm.pkg.github.com
 ```
 
+Current version: **`0.4.0`**. Pin `@alkazat/contracts@^0.4.0` (the admin surface
+that earlier handoffs called `^0.2.0` ships within this range).
+
+## Admin surface (v0.2) — reconciliation for the Admin thread
+
+The full `/admin/*` surface from the Admin handoff is built and matches the
+proposed DTOs verbatim, with **one rename**:
+
+- **`TripSummary` → `AdminTripSummary`.** Fields are identical
+  (`id, destination, ownerEmail, tier, status, startDate, endDate,
+  retentionExpiresAt`); only the name changed. v0.4 gave the canonical
+  `TripSummary` name to the customer surface (snake_case, with `day_count` /
+  `data_kept`), so the admin off-domain row is now `AdminTripSummary`. It is what
+  `getTripSummary` returns and what `TripSummaryPage.items` holds. **Admin:
+  import `AdminTripSummary`.**
+
+All other admin DTOs are unchanged: `Role`, `TripTier`, `AiModel`, `AiJobKind`,
+`AiJobStatus`, `Prompt`, `ModelRoute`, `AiJob`, `JobCapUsage`, `CustomerSummary`,
+`ProductSummary`, `PurchaseSummary`, `ContentReviewItem`, and the
+`TripDay`/`TripMoment`/`TripActivity` aliases of the canonical content model.
+
 ## Admin auth claim shape (answer to the Admin thread)
 
 `role` is **not** a JWT claim. The flow is:
