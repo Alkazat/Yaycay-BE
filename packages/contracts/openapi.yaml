@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Yaycay API
-  version: 0.2.0
+  version: 0.2.1
   description: >
     Yaycay back-end HTTP API. The v0.1 surface (Phase 0) is the free-demo
     generator, signup/lead capture, the 2FA verify step, and trip + trip-content
@@ -1383,7 +1383,7 @@ components:
     AdminChildProfile:
       type: object
       additionalProperties: false
-      required: [id, name]
+      required: [id, name, interests]
       properties:
         id: { type: string }
         name: { type: string }
@@ -1391,6 +1391,9 @@ components:
         mode:
           type: string
           enum: [little, explorer, explorer_plus]
+        interests:
+          type: array
+          items: { type: string }
 
     AdminProgress:
       type: object

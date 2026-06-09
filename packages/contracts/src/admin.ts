@@ -2,7 +2,7 @@
  * Admin-scoped DTOs for the `/admin/*` surface (contract v0.2).
  *
  * Authored from the Admin thread's contract change request. The Admin app
- * mirrors these verbatim until it pins `@yaycay/contracts@^0.2.0` and deletes
+ * mirrors these verbatim until it pins `@alkazat/contracts@^0.2.0` and deletes
  * its local `src/lib/contracts/types.ts` stand-ins.
  *
  * Auth for every `/admin/*` endpoint: a Supabase JWT with `role=admin` and AAL2
@@ -10,11 +10,46 @@
  */
 
 import type { Tier } from './dto.js';
-import type { ActivityKind } from './trip-content.js';
+import type { ActivityKind, Day, Moment, Activity } from './trip-content.js';
 
 export type { ActivityKind };
 
+/**
+ * Naming aliases for the canonical content model (model-context section 5).
+ * The Admin thread refers to these as Trip*; BE's canonical names are
+ * Day/Moment/Activity (used by FE too). Exported so Admin can import either.
+ */
+export type TripDay = Day;
+export type TripMoment = Moment;
+export type TripActivity = Activity;
+
 export type Role = 'user' | 'admin';
+
+/** Decoded admin session state (from the Supabase JWT). */
+export interface AdminSession {
+  userId: string;
+  email: string;
+  role: Role;
+  mfaVerified: boolean;
+}
+
+/** Child profile as surfaced to admin inspection screens. */
+export interface ChildProfile {
+  id: string;
+  name: string;
+  age: number;
+  interests: string[];
+}
+
+/** An audited admin action (actor, action, target, when). */
+export interface AuditEntry {
+  id: string;
+  actor: string;
+  action: string;
+  target: string;
+  at: string;
+  details?: string;
+}
 
 /** Alias of {@link Tier} under the name the Admin thread uses. */
 export type TripTier = Tier;

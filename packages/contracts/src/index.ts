@@ -1,5 +1,5 @@
 /**
- * @yaycay/contracts - the shared handshake.
+ * @alkazat/contracts - the shared handshake.
  *
  * Re-exports the canonical content model, the v0.1 client DTOs, and the v0.2
  * admin-scoped DTOs. The OpenAPI spec (`openapi.yaml`) and the JSON schema
@@ -8,7 +8,7 @@
  */
 
 /** Semantic version of this contract. Clients pin a range, e.g. `^0.2.0`. */
-export const CONTRACT_VERSION = '0.2.0';
+export const CONTRACT_VERSION = '0.2.1';
 
 export * from './trip-content.js';
 export * from './dto.js';

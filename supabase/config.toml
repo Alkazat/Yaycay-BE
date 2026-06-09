@@ -47,3 +47,11 @@ verify_jwt = false
 # enforces role=admin + AAL2 (MFA) and audits every call.
 [functions.admin]
 verify_jwt = true
+
+# Customer trip API and 2FA verify: the gateway verifies the JWT; handlers run
+# as the caller so RLS enforces ownership.
+[functions.trips]
+verify_jwt = true
+
+[functions.auth-2fa-verify]
+verify_jwt = true
