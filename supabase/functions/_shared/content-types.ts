@@ -21,13 +21,28 @@ export interface VariantBlock {
 
 export type Variants = Partial<Record<ExplorerMode, VariantBlock>>;
 
+export interface Booking {
+  name: string;
+  time?: string;
+  ref?: string;
+  notes?: string;
+}
+
+export interface Safety {
+  note?: string;
+  flags?: string[];
+}
+
 export interface Activity {
   id: string;
   kind: ActivityKind;
   title: string;
   body?: string;
   variants?: Variants;
-  safety?: { note?: string; flags?: string[] };
+  booking?: Booking;
+  safety?: Safety;
+  /** References to media rows; resolved to signed URLs at read time. */
+  media_ref?: string[];
 }
 
 export interface Moment {
@@ -45,4 +60,26 @@ export interface Day {
   label?: string;
   summary?: string;
   moments: Moment[];
+}
+
+export interface TripContentHeader {
+  id: string;
+  destination: string;
+  start_date: string;
+  end_date: string;
+  timezone?: string;
+  currency?: string;
+}
+
+export interface Grownups {
+  essentials?: string;
+  checklist?: string[];
+  transport?: string;
+}
+
+/** The canonical per-trip payload stored in `trip_content.content`. */
+export interface TripContent {
+  trip: TripContentHeader;
+  days: Day[];
+  grownups?: Grownups;
 }

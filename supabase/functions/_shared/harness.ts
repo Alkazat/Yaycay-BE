@@ -1,13 +1,16 @@
-// Model-agnostic AI harness (Phase 0 slice: the free-demo day generator).
+// Model-agnostic AI harness.
 //
-// The full harness wraps Claude / Gemini / OpenAI and is driven by the active
-// `prompts` row chosen in Admin. For Phase 0 we expose a single demo generator
-// that defaults to Claude Sonnet (the use-our-AI tier model) and falls back to
-// a deterministic builder when no API key is configured, so the demo and smoke
-// test always produce a valid day.
+// Phase 0 shipped the free-demo day generator; Phase 1 adds the two use-our-AI
+// surfaces: a streaming planning chat and structured ingestion (a receipt,
+// booking, or note becomes a TripContentPatch). All default to Claude Sonnet
+// (the use-our-AI tier model), are driven by config where Admin has set a
+// prompt/model, and fall back to a deterministic path when no API key is
+// configured, so the demo, ingestion, and smoke tests always produce valid
+// output without a live model.
 
 import { optionalEnv } from './env.ts';
-import type { Day, ExplorerMode } from './content-types.ts';
+import type { Activity, Day, ExplorerMode, Moment, TripContent } from './content-types.ts';
+import type { TripContentPatch } from './trip-patch.ts';
 
 export interface DemoChildInput {
   name: string;
@@ -281,4 +284,275 @@ export function buildFallbackDay(input: DemoDayInput): Omit<DemoDayResult, 'gene
   };
 
   return { day, grownups_teaser: grownupsTeaser(input) };
+}
+
+// ===== Planning chat (use-our-AI, streaming) ================================
+
+export interface ChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+export interface PlanChatInput {
+  destination: string;
+  /** The current trip content, given to the model as planning context. */
+  content: TripContent;
+  messages: ChatMessage[];
+}
+
+/** The model that answers use-our-AI planning chat. */
+export function chatModel(): string {
+  return DEFAULT_MODEL;
+}
+
+export function chatGeneratedBy(): 'ai' | 'fallback' {
+  return optionalEnv('ANTHROPIC_API_KEY') ? 'ai' : 'fallback';
+}
+
+const CHAT_SYSTEM =
+  'You are the Yaycay family-holiday planning companion. You help a parent shape ' +
+  'their trip: ideas for days and moments, kid-friendly tweaks, pacing, dietary and ' +
+  'safety care, and gentle logistics. You can see the current itinerary as JSON for ' +
+  'context. You do not edit it directly - you suggest, and the parent applies changes ' +
+  'in the app. Keep replies warm, concrete, and concise. No em-dashes.';
+
+function chatContext(input: PlanChatInput): string {
+  const days = (input.content?.days ?? []).map((d) => ({
+    id: d.id,
+    date: d.date,
+    label: d.label,
+    moments: (d.moments ?? []).map((m) => ({ id: m.id, slot: m.slot, title: m.title })),
+  }));
+  return `Trip destination: ${input.destination}\nCurrent itinerary (for context):\n${JSON.stringify(
+    { days },
+    null,
+    2,
+  )}`;
+}
+
+/**
+ * Stream a planning-chat reply as a sequence of text deltas. Yields plain text
+ * chunks; the edge function frames them as SSE. Falls back to a single canned
+ * reply when no API key is configured, so the surface works offline.
+ */
+export async function* planChatDeltas(input: PlanChatInput): AsyncGenerator<string> {
+  const apiKey = optionalEnv('ANTHROPIC_API_KEY');
+  if (!apiKey) {
+    yield fallbackChatReply(input);
+    return;
+  }
+
+  const res = await fetch(ANTHROPIC_URL, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+    },
+    body: JSON.stringify({
+      model: DEFAULT_MODEL,
+      max_tokens: 1024,
+      stream: true,
+      system: `${CHAT_SYSTEM}\n\n${chatContext(input)}`,
+      messages: input.messages.map((m) => ({ role: m.role, content: m.content })),
+    }),
+  });
+
+  if (!res.ok || !res.body) {
+    throw new Error(`Anthropic chat request failed: ${res.status}`);
+  }
+
+  yield* parseAnthropicTextStream(res.body);
+}
+
+// Parse Anthropic's SSE stream, yielding only the text deltas.
+async function* parseAnthropicTextStream(body: ReadableStream<Uint8Array>): AsyncGenerator<string> {
+  const reader = body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      // SSE events are separated by a blank line.
+      let sep: number;
+      while ((sep = buffer.indexOf('\n\n')) !== -1) {
+        const event = buffer.slice(0, sep);
+        buffer = buffer.slice(sep + 2);
+        for (const line of event.split('\n')) {
+          if (!line.startsWith('data:')) continue;
+          const payload = line.slice(5).trim();
+          if (!payload || payload === '[DONE]') continue;
+          try {
+            const json = JSON.parse(payload);
+            if (json?.type === 'content_block_delta' && json.delta?.type === 'text_delta') {
+              yield json.delta.text as string;
+            }
+          } catch {
+            // Skip non-JSON keepalive lines.
+          }
+        }
+      }
+    }
+  } finally {
+    reader.releaseLock();
+  }
+}
+
+function fallbackChatReply(input: PlanChatInput): string {
+  const last = [...input.messages].reverse().find((m) => m.role === 'user')?.content ?? '';
+  const dayCount = input.content?.days?.length ?? 0;
+  const topic = last.trim().length > 0 ? ` about "${last.trim().slice(0, 80)}"` : '';
+  return (
+    `Happy to help plan ${input.destination}${topic}. ` +
+    `You have ${dayCount} day${dayCount === 1 ? '' : 's'} mapped so far. ` +
+    `A nice rhythm is one anchor activity per day with calm time around it, ` +
+    `kept flexible for little legs. Tell me a day to focus on and I will suggest moments for it.`
+  );
+}
+
+// ===== Ingestion (receipt / booking / note -> patch) ========================
+
+export interface IngestImage {
+  /** e.g. image/jpeg, image/png. */
+  media_type: string;
+  /** base64-encoded image bytes (no data: prefix). */
+  data: string;
+}
+
+export interface IngestInput {
+  destination: string;
+  /** Free text: a note, a pasted confirmation, OCR output. */
+  text?: string;
+  /** A photo of a receipt/booking/ticket for the vision model. */
+  image?: IngestImage;
+  /** Optional targeting hint from the client. */
+  hint?: { day_id?: string; moment_id?: string };
+  /** Current content, so the model targets the right day/moment. */
+  content: TripContent;
+}
+
+export interface IngestResult {
+  patch: TripContentPatch;
+  generated_by: 'ai' | 'fallback';
+  model: string;
+}
+
+const INGEST_SYSTEM =
+  'You turn a family-holiday receipt, booking, ticket, or note into a TripContentPatch ' +
+  'for the Yaycay itinerary. Return ONLY a JSON object {"ops": [...], "note": "..."}. ' +
+  'Choose the smallest set of ops that records the item against the right day/moment. ' +
+  'Allowed ops: add_day{day}, set_day_summary{day_id,summary}, add_moment{day_id,moment}, ' +
+  'add_activity{day_id,moment_id,activity}, update_activity{activity_id,set}, ' +
+  'move_activity{activity_id,to_moment_id}, set_booking{activity_id,booking}. ' +
+  'A booking is {name, time?, ref?, notes?}. An activity is {kind:"kid"|"shared"|"adult", ' +
+  'title, body?, booking?}. Prefer attaching a booking to a relevant existing activity; ' +
+  'otherwise add a new activity to a suitable moment. Use the provided ids exactly. No em-dashes.';
+
+function ingestContext(input: IngestInput): string {
+  const days = (input.content?.days ?? []).map((d) => ({
+    id: d.id,
+    date: d.date,
+    label: d.label,
+    moments: (d.moments ?? []).map((m) => ({
+      id: m.id,
+      slot: m.slot,
+      title: m.title,
+      activities: (m.activities ?? []).map((a) => ({ id: a.id, title: a.title })),
+    })),
+  }));
+  return JSON.stringify({ destination: input.destination, hint: input.hint, days }, null, 2);
+}
+
+export async function ingest(input: IngestInput): Promise<IngestResult> {
+  const apiKey = optionalEnv('ANTHROPIC_API_KEY');
+  if (!apiKey || (!input.text && !input.image)) {
+    return { patch: fallbackIngestPatch(input), generated_by: 'fallback', model: 'fallback' };
+  }
+
+  try {
+    const content: unknown[] = [
+      {
+        type: 'text',
+        text:
+          `Current itinerary and targeting hint:\n${ingestContext(input)}\n\n` +
+          (input.text ? `Item text:\n${input.text}` : 'See the attached image.'),
+      },
+    ];
+    if (input.image) {
+      content.push({
+        type: 'image',
+        source: { type: 'base64', media_type: input.image.media_type, data: input.image.data },
+      });
+    }
+
+    const res = await fetch(ANTHROPIC_URL, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model: DEFAULT_MODEL,
+        max_tokens: 1500,
+        system: INGEST_SYSTEM,
+        messages: [{ role: 'user', content }],
+      }),
+    });
+    if (!res.ok) throw new Error(`Anthropic ingest request failed: ${res.status}`);
+
+    const data = await res.json();
+    const text: string =
+      Array.isArray(data?.content) && data.content[0]?.type === 'text' ? data.content[0].text : '';
+    const parsed = extractJson(text) as TripContentPatch;
+    if (!parsed || !Array.isArray(parsed.ops) || parsed.ops.length === 0) {
+      throw new Error('Model returned no ops');
+    }
+    return { patch: parsed, generated_by: 'ai', model: DEFAULT_MODEL };
+  } catch (_err) {
+    // Never lose the parent's item on a model hiccup: record it deterministically.
+    return { patch: fallbackIngestPatch(input), generated_by: 'fallback', model: 'fallback' };
+  }
+}
+
+// Deterministic ingestion: attach the item as a booking note to the hinted (or
+// first) day, creating a day/moment if the itinerary is still empty.
+function fallbackIngestPatch(input: IngestInput): TripContentPatch {
+  const summary = (input.text ?? 'Saved item from a photo').trim().slice(0, 200);
+  const activity: Activity = {
+    id: '',
+    kind: 'shared',
+    title: 'Saved booking',
+    body: summary,
+    booking: { name: 'Captured item', notes: summary },
+  };
+
+  const days = input.content?.days ?? [];
+  const targetDay = input.hint?.day_id ? days.find((d) => d.id === input.hint?.day_id) : days[0];
+
+  if (targetDay) {
+    const targetMoment = input.hint?.moment_id
+      ? targetDay.moments.find((m) => m.id === input.hint?.moment_id)
+      : targetDay.moments[0];
+    if (targetMoment) {
+      return {
+        ops: [{ op: 'add_activity', day_id: targetDay.id, moment_id: targetMoment.id, activity }],
+        note: 'Saved your item to the itinerary.',
+      };
+    }
+    const moment: Moment = { id: '', slot: 'anytime', title: 'Bookings', activities: [activity] };
+    return {
+      ops: [{ op: 'add_moment', day_id: targetDay.id, moment }],
+      note: 'Saved your item to the itinerary.',
+    };
+  }
+
+  const day: Day = {
+    id: '',
+    label: 'Bookings',
+    moments: [{ id: '', slot: 'anytime', title: 'Bookings', activities: [activity] }],
+  };
+  return { ops: [{ op: 'add_day', day }], note: 'Saved your item to a new day.' };
 }
