@@ -1,7 +1,10 @@
 name: Publish contracts
 
-# Publishes @alkazat/contracts to GitHub Packages when a contract version tag is
-# pushed, e.g. `contracts-v0.2.0`. Consumers (FE, Admin, Website) pin a range.
+# Publishes @alkazat/contracts to GitHub Packages. Two triggers:
+#   - push a contract version tag, e.g. `contracts-v0.4.0` (the normal path);
+#   - manual `workflow_dispatch` with the version typed in, for when a tag push
+#     isn't possible. Either way the version must match packages/contracts
+#     package.json, so a publish can't silently ship the wrong version.
 #
 # The package scope (@alkazat) matches the repository owner, as GitHub Packages
 # requires. Consumers authenticate to npm.pkg.github.com to install. See README
@@ -11,6 +14,11 @@ on:
   push:
     tags:
       - 'contracts-v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to publish; must match packages/contracts/package.json (e.g. 0.4.0)'
+        required: true
 
 permissions:
   contents: read
@@ -27,13 +35,17 @@ jobs:
           registry-url: 'https://npm.pkg.github.com'
           scope: '@alkazat'
       - run: npm install --no-audit --no-fund
-      - name: Verify the tag matches the package version
+      - name: Verify the requested version matches the package
         working-directory: packages/contracts
         run: |
           PKG_VERSION="$(node -p "require('./package.json').version")"
-          TAG_VERSION="${GITHUB_REF_NAME#contracts-v}"
-          if [ "$PKG_VERSION" != "$TAG_VERSION" ]; then
-            echo "Tag ${TAG_VERSION} does not match package.json version ${PKG_VERSION}." >&2
+          if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then
+            WANT_VERSION="${{ github.event.inputs.version }}"
+          else
+            WANT_VERSION="${GITHUB_REF_NAME#contracts-v}"
+          fi
+          if [ "$PKG_VERSION" != "$WANT_VERSION" ]; then
+            echo "Requested ${WANT_VERSION} does not match package.json version ${PKG_VERSION}." >&2
             exit 1
           fi
           echo "Publishing @alkazat/contracts@${PKG_VERSION}"
