@@ -41,6 +41,11 @@ NEXT_PUBLIC_SUPABASE_URL=https://nzmjkbjtcjthjwdscjrj.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=<anon public key — Supabase → Settings → API>
 ```
 
+There are two environments. Production deploys from `main` (the project above);
+a separate **staging** project deploys from `develop` — point staging builds at
+`https://<STAGING_PROJECT_REF>.supabase.co/functions/v1`. Same path rules apply
+to both.
+
 Without a gateway, endpoint paths are the **function names**. Three contract
 paths map to hyphenated functions; the rest match:
 

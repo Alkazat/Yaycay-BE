@@ -85,7 +85,10 @@ git push origin contracts-v0.2.0
 ```
 
 The workflow checks the tag matches `package.json`, validates and builds the
-package, and runs `npm publish`. Consumers install with an `.npmrc`:
+package, and runs `npm publish`. When pushing a tag is not possible, the same
+workflow can be run manually: Actions -> **Publish contracts** -> Run workflow,
+entering the version (it still must match `package.json`). Consumers install
+with an `.npmrc`:
 
 ```
 @alkazat:registry=https://npm.pkg.github.com
@@ -95,9 +98,23 @@ package, and runs `npm publish`. Consumers install with an `.npmrc`:
 The package scope (`@alkazat`) matches the repository owner, which is what
 GitHub Packages requires for publishing.
 
+## Branching and deploy
+
+- **`develop`** is the default and integration branch; feature branches PR into it.
+- **`main`** is production.
+- Deploys are automatic (`.github/workflows/deploy.yml`):
+  - merge to `develop` -> deploys the **staging** project (`STAGING_PROJECT_REF`)
+  - merge to `main` -> deploys **production** (`SUPABASE_PROJECT_REF`)
+  - each run applies migrations (`supabase db push`), then `supabase functions deploy`
+- **Ship to prod** by promoting: open a `develop` -> `main` PR; merging it deploys production.
+- **Ad-hoc:** Actions -> **Deploy** -> Run workflow -> pick `staging` or `production`.
+- Deploy secrets: `SUPABASE_ACCESS_TOKEN`, `SUPABASE_PROJECT_REF` / `SUPABASE_DB_PASSWORD`
+  (prod), `STAGING_PROJECT_REF` / `STAGING_DB_PASSWORD` (staging); optional
+  `ANTHROPIC_API_KEY`, `BREVO_API_KEY`. The platform injects `SUPABASE_URL` /
+  `SUPABASE_ANON_KEY` / `SUPABASE_SERVICE_ROLE_KEY` into functions automatically.
 
 ## Conventions
 
-TypeScript everywhere, Node 20. `develop` -> staging, `main` -> production;
-every PR runs the full suite and blocks merge on failure. Conventional commits.
-Writing rule for all docs and copy: no em-dashes.
+TypeScript everywhere, Node 20. Branch/deploy model above (`develop` -> staging,
+`main` -> production); every PR runs the full suite and blocks merge on failure.
+Conventional commits. Writing rule for all docs and copy: no em-dashes.
