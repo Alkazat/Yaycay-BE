@@ -17,7 +17,7 @@ GitHub Packages registry for the `@alkazat` scope:
 @alkazat:registry=https://npm.pkg.github.com
 ```
 
-Current version: **`0.4.0`**. Pin `@alkazat/contracts@^0.4.0` (the admin surface
+Current version: **`0.6.0`**. Pin `@alkazat/contracts@^0.6.0` (the admin surface
 that earlier handoffs called `^0.2.0` ships within this range).
 
 GitHub Packages requires auth to install **even public packages**. Each consumer
@@ -115,6 +115,10 @@ server-resolved (not a claim). Audit sink is `public.admin_audit_log`
 | `PATCH /trips/:id/content` | `TripContent` (schema-validated) | ✅ served |
 | `POST /trips/:id/plan/chat` | SSE `PlanChatEvent` stream (tier=ours) | ✅ served (v0.3) |
 | `POST /trips/:id/ingest` | `IngestResponse` (paid: byo/ours) | ✅ served (v0.3) |
+| `GET/POST /trips/:id/journal` | `JournalEntry` (POST paid) | ✅ served (v0.6) |
+| `POST /media/sign-upload` | `SignUploadResponse` (signed Storage URL, paid) | ✅ served (v0.6) |
+| `POST /connectors/byo-ai` · `GET /connectors` · `POST /mcp` | BYO-AI MCP (tier=byo) | ✅ served (v0.6) |
+| `GET /admin/me` | `AdminSession` (role + MFA) | ✅ served (v0.6) |
 | `POST /checkout/session` | `CheckoutSessionResponse` (Stripe Checkout URL) | ✅ served (v0.5) |
 | `POST /webhooks/stripe` | `{ received }` (signature-verified; flips trip tier) | ✅ served (v0.5) |
 
@@ -140,9 +144,6 @@ These are specced by consumers but not built. They will be added to the contract
 | Child profiles | `GET /profiles -> { profiles: ChildProfile[] }` | profiles/progress |
 | Per-profile progress | `GET/PATCH /trips/:id/progress` | profiles/progress |
 | Account summary | `GET /account -> AccountSummary` | account |
-| Journal | `GET/POST /trips/:id/journal` (`JournalEntry`) | journal/media |
-| Media upload | `POST /media/sign-upload` (signed-URL flow) | journal/media |
-| BYO-AI connector | `POST /connectors/byo-ai`, `GET /connectors`, `POST /mcp` | BYO-AI MCP |
 
 ### Commerce setup (Stripe)
 

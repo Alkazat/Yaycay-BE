@@ -196,6 +196,13 @@ Deno.serve(async (req) => {
       return await handleIngest(client, userId, tripId, req);
     }
 
+    // /trips/:id/journal - per-trip journal (read by owner; write is paid).
+    if (seg.length === 2 && seg[1] === 'journal') {
+      if (req.method === 'GET') return await handleJournalList(client, tripId, url);
+      if (req.method === 'POST') return await handleJournalCreate(client, userId, tripId, req);
+      return error('method_not_allowed', 'Use GET or POST.', 405);
+    }
+
     return error('not_found', 'No such route.', 404);
   } catch (err) {
     if (err instanceof UnauthorizedError) {
@@ -366,6 +373,56 @@ async function handleIngest(
     await finishJob(svc, jobId, 'failed', err instanceof Error ? err.message : String(err));
     throw err;
   }
+}
+
+const JOURNAL_COLUMNS = 'id, trip_id, profile_id, body, media_ref, created_at';
+
+async function handleJournalList(client: UserClient, tripId: string, url: URL): Promise<Response> {
+  let q = client
+    .from('journal_entries')
+    .select(JOURNAL_COLUMNS)
+    .eq('trip_id', tripId)
+    .order('created_at', { ascending: false });
+  const profileId = url.searchParams.get('profile_id');
+  if (profileId) q = q.eq('profile_id', profileId);
+  const { data, error: dbErr } = await q;
+  if (dbErr) throw new Error(dbErr.message);
+  return json({ entries: data ?? [] });
+}
+
+async function handleJournalCreate(
+  client: UserClient,
+  userId: string,
+  tripId: string,
+  req: Request,
+): Promise<Response> {
+  const tier = await loadTier(client, tripId);
+  if (tier === null) throw new NotFoundError();
+  if (tier !== 'byo' && tier !== 'ours') throw new EntitlementError(['byo', 'ours']);
+
+  const body = await readJson(req);
+  const text = typeof body.body === 'string' ? body.body : '';
+  const profileId = typeof body.profile_id === 'string' ? body.profile_id : null;
+  const mediaRef = Array.isArray(body.media_ref)
+    ? (body.media_ref as unknown[]).filter((x): x is string => typeof x === 'string')
+    : [];
+  if (text.trim().length === 0 && mediaRef.length === 0) {
+    throw new ValidationError(['Provide body text or media_ref.']);
+  }
+
+  const { data, error: dbErr } = await client
+    .from('journal_entries')
+    .insert({
+      trip_id: tripId,
+      user_id: userId,
+      profile_id: profileId,
+      body: text,
+      media_ref: mediaRef,
+    })
+    .select(JOURNAL_COLUMNS)
+    .single();
+  if (dbErr) throw new Error(dbErr.message);
+  return json(data, 201);
 }
 
 async function tripDestination(client: UserClient, tripId: string): Promise<string> {

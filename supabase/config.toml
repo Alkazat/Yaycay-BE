@@ -60,6 +60,19 @@ verify_jwt = true
 [functions.checkout]
 verify_jwt = true
 
+# Media sign-upload runs as the caller (mints a signed Storage upload URL).
+[functions.media]
+verify_jwt = true
+
+# Connector management runs as the caller (mints/lists/revokes MCP tokens).
+[functions.connectors]
+verify_jwt = true
+
+# The MCP endpoint authenticates with a connector token, not a Supabase JWT, so
+# the gateway must not require one; the handler verifies the token signature.
+[functions.mcp]
+verify_jwt = false
+
 # Stripe calls this directly, so the gateway must not require a JWT; the handler
 # verifies the Stripe signature instead.
 [functions.stripe-webhook]
