@@ -41,6 +41,11 @@ NEXT_PUBLIC_SUPABASE_URL=https://nzmjkbjtcjthjwdscjrj.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=<anon public key — Supabase → Settings → API>
 ```
 
+There are two environments. Production deploys from `main` (the project above);
+a separate **staging** project deploys from `develop` — point staging builds at
+`https://<STAGING_PROJECT_REF>.supabase.co/functions/v1`. Same path rules apply
+to both.
+
 Without a gateway, endpoint paths are the **function names**. Three contract
 paths map to hyphenated functions; the rest match:
 
@@ -104,6 +109,8 @@ server-resolved (not a claim). Audit sink is `public.admin_audit_log`
 | `PATCH /trips/:id/content` | `TripContent` (schema-validated) | ✅ served |
 | `POST /trips/:id/plan/chat` | SSE `PlanChatEvent` stream (tier=ours) | ✅ served (v0.3) |
 | `POST /trips/:id/ingest` | `IngestResponse` (paid: byo/ours) | ✅ served (v0.3) |
+| `POST /checkout/session` | `CheckoutSessionResponse` (Stripe Checkout URL) | ✅ served (v0.5) |
+| `POST /webhooks/stripe` | `{ received }` (signature-verified; flips trip tier) | ✅ served (v0.5) |
 
 ### v0.1 reconciliations (resolved)
 
@@ -129,6 +136,19 @@ These are specced by consumers but not built. They will be added to the contract
 | Account summary | `GET /account -> AccountSummary` | account |
 | Journal | `GET/POST /trips/:id/journal` (`JournalEntry`) | journal/media |
 | Media upload | `POST /media/sign-upload` (signed-URL flow) | journal/media |
-| Checkout | `POST /checkout/session` (`{ price_id, trip_id? } -> { url }`) — canonical path is `/checkout/session`, not `/checkout` | Stripe |
-| Stripe webhook | `POST /webhooks/stripe` (entitlement, idempotent) | Stripe |
 | BYO-AI connector | `POST /connectors/byo-ai`, `GET /connectors`, `POST /mcp` | BYO-AI MCP |
+
+### Commerce setup (Stripe)
+
+`/checkout/session` validates the `price_id` against the `products` table, so each
+Stripe price must be seeded there with the tier it grants, e.g.:
+
+```sql
+insert into public.products (price_id, name, amount_usd, tier) values
+  ('price_xxx_ours', 'Use Our AI', 49, 'ours'),
+  ('price_xxx_byo',  'Bring Your Own AI', 29, 'byo');
+```
+
+Function secrets on each environment: `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`
+(and optional `CHECKOUT_SUCCESS_URL` / `CHECKOUT_CANCEL_URL` defaults). Point the
+Stripe webhook endpoint at `…/functions/v1/stripe-webhook`.

@@ -186,3 +186,23 @@ export interface IngestResponse {
   /** The full trip content after applying the patch. */
   content: TripContent;
 }
+
+// ===== Commerce (v0.5): Stripe Checkout =====================================
+
+/** Request body for `POST /checkout/session`. */
+export interface CheckoutSessionRequest {
+  /** The Stripe price id of a known, active catalogue product. */
+  price_id: string;
+  /** Optional trip the purchased tier applies to. */
+  trip_id?: string;
+  /** Redirect targets; fall back to server defaults when omitted. */
+  success_url?: string;
+  cancel_url?: string;
+}
+
+export interface CheckoutSessionResponse {
+  /** The Stripe-hosted Checkout URL to redirect the customer to. */
+  url: string;
+  /** The Stripe Checkout Session id. */
+  session_id: string;
+}

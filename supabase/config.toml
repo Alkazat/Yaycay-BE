@@ -55,3 +55,12 @@ verify_jwt = true
 
 [functions.auth-2fa-verify]
 verify_jwt = true
+
+# Checkout runs as the caller (creates a Stripe session for a known price).
+[functions.checkout]
+verify_jwt = true
+
+# Stripe calls this directly, so the gateway must not require a JWT; the handler
+# verifies the Stripe signature instead.
+[functions.stripe-webhook]
+verify_jwt = false
