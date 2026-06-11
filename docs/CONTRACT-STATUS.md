@@ -20,6 +20,44 @@ GitHub Packages registry for the `@alkazat` scope:
 Current version: **`0.4.0`**. Pin `@alkazat/contracts@^0.4.0` (the admin surface
 that earlier handoffs called `^0.2.0` ships within this range).
 
+GitHub Packages requires auth to install **even public packages**. Each consumer
+(and their CI) needs a GitHub token with `read:packages`:
+
+```
+# ~/.npmrc (user-level, keep the token out of committed files)
+//npm.pkg.github.com/:_authToken=<token with read:packages>
+```
+
+## Live deployment (free tier)
+
+Deployed to the Supabase project `nzmjkbjtcjthjwdscjrj` (free tier — no custom
+domain). There is **no `api.yaycay.ai` gateway**, so the OpenAPI `servers` block
+is aspirational; consumers use the function base URL below via an env var (do not
+hard-code it — a future domain switch should be one line).
+
+```
+NEXT_PUBLIC_API_BASE=https://nzmjkbjtcjthjwdscjrj.supabase.co/functions/v1
+NEXT_PUBLIC_SUPABASE_URL=https://nzmjkbjtcjthjwdscjrj.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=<anon public key — Supabase → Settings → API>
+```
+
+Without a gateway, endpoint paths are the **function names**. Three contract
+paths map to hyphenated functions; the rest match:
+
+| Contract path | Live URL (append to `NEXT_PUBLIC_API_BASE`) |
+|---|---|
+| `POST /demo/generate-day` | `/demo-generate-day` |
+| `POST /signup/capture` | `/signup-capture` |
+| `POST /auth/2fa/verify` | `/auth-2fa-verify` |
+| `/trips`, `/trips/:id`, `/trips/:id/content`, `/trips/:id/plan/chat`, `/trips/:id/ingest` | `/trips…` (matches) |
+| `/admin/*` | `/admin/*` (matches) |
+
+Headers: every request sends `apikey: <anon key>`; authenticated routes also
+`Authorization: Bearer <user JWT>`. When a custom domain / gateway is added later,
+the clean contract paths (`/demo/generate-day`, …) can be served via a path-rewrite
+proxy, and this table goes away.
+
+
 ## Admin surface (v0.2) — reconciliation for the Admin thread
 
 The full `/admin/*` surface from the Admin handoff is built and matches the
