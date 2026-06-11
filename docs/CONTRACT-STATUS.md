@@ -149,6 +149,10 @@ insert into public.products (price_id, name, amount_usd, tier) values
   ('price_xxx_byo',  'Bring Your Own AI', 29, 'byo');
 ```
 
-Function secrets on each environment: `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`
-(and optional `CHECKOUT_SUCCESS_URL` / `CHECKOUT_CANCEL_URL` defaults). Point the
-Stripe webhook endpoint at `…/functions/v1/stripe-webhook`.
+Stripe keys are per environment (test on staging, live on prod). Add repo
+secrets: production uses `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET`; staging
+uses `STAGING_STRIPE_SECRET_KEY` / `STAGING_STRIPE_WEBHOOK_SECRET`. The deploy
+pushes whichever matches the target as `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET`
+to the project (plus optional `CHECKOUT_SUCCESS_URL` / `CHECKOUT_CANCEL_URL`).
+Point each environment's Stripe webhook at that project's
+`…/functions/v1/stripe-webhook`.

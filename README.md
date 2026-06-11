@@ -115,8 +115,10 @@ GitHub Packages requires for publishing.
 - **Ad-hoc:** Actions -> **Deploy** -> Run workflow -> pick `staging` or `production`.
 - Deploy secrets: `SUPABASE_ACCESS_TOKEN`, `SUPABASE_PROJECT_REF` / `SUPABASE_DB_PASSWORD`
   (prod), `STAGING_PROJECT_REF` / `STAGING_DB_PASSWORD` (staging); optional
-  `ANTHROPIC_API_KEY`, `BREVO_API_KEY`. The platform injects `SUPABASE_URL` /
-  `SUPABASE_ANON_KEY` / `SUPABASE_SERVICE_ROLE_KEY` into functions automatically.
+  `ANTHROPIC_API_KEY`, `BREVO_API_KEY`, and per-environment Stripe keys
+  (`STRIPE_*` for prod, `STAGING_STRIPE_*` for staging). The platform injects
+  `SUPABASE_URL` / `SUPABASE_ANON_KEY` / `SUPABASE_SERVICE_ROLE_KEY` into functions
+  automatically.
 
 ## Conventions
 
