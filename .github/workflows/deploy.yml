@@ -97,6 +97,8 @@ jobs:
           set --
           [ -n "${{ secrets.ANTHROPIC_API_KEY }}" ] && set -- "$@" "ANTHROPIC_API_KEY=${{ secrets.ANTHROPIC_API_KEY }}"
           [ -n "${{ secrets.BREVO_API_KEY }}" ] && set -- "$@" "BREVO_API_KEY=${{ secrets.BREVO_API_KEY }}"
+          [ -n "${{ secrets.STRIPE_SECRET_KEY }}" ] && set -- "$@" "STRIPE_SECRET_KEY=${{ secrets.STRIPE_SECRET_KEY }}"
+          [ -n "${{ secrets.STRIPE_WEBHOOK_SECRET }}" ] && set -- "$@" "STRIPE_WEBHOOK_SECRET=${{ secrets.STRIPE_WEBHOOK_SECRET }}"
           if [ "$#" -gt 0 ]; then
             supabase secrets set --project-ref "${PROJECT_REF}" "$@"
           else

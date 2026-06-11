@@ -42,10 +42,10 @@ jobs:
           deno-version: v2.x
       - name: Type-check edge functions
         working-directory: supabase/functions
-        run: deno check demo-generate-day/index.ts signup-capture/index.ts admin/index.ts trips/index.ts auth-2fa-verify/index.ts
-      - name: Unit-test the AI harness patch layer
+        run: deno check demo-generate-day/index.ts signup-capture/index.ts admin/index.ts trips/index.ts auth-2fa-verify/index.ts checkout/index.ts stripe-webhook/index.ts
+      - name: Unit-test the shared edge logic
         working-directory: supabase/functions
-        run: deno test _shared/trip-patch_test.ts
+        run: deno test _shared/trip-patch_test.ts _shared/stripe_test.ts
 
   database:
     name: Migrations + RLS (pgTAP)

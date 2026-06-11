@@ -8,8 +8,8 @@
  * resolvable via the package `exports` map.
  */
 
-/** Semantic version of this contract. Clients pin a range, e.g. `^0.4.0`. */
-export const CONTRACT_VERSION = '0.4.0';
+/** Semantic version of this contract. Clients pin a range, e.g. `^0.5.0`. */
+export const CONTRACT_VERSION = '0.5.0';
 
 export * from './trip-content.js';
 export * from './dto.js';
