@@ -1,25 +1,32 @@
 name: Deploy
 
-# Deploys the backend (migrations + edge functions) to a Supabase project.
+# Deploys the backend (migrations + edge functions) to Supabase.
 #
-# Manual by default (workflow_dispatch) so a deploy is always a deliberate act;
-# the project ref defaults to the current target. Requires two repo secrets:
+# Environments map to branches:
+#   push to develop -> staging  (STAGING_PROJECT_REF / STAGING_DB_PASSWORD)
+#   push to main    -> production (SUPABASE_PROJECT_REF / SUPABASE_DB_PASSWORD)
+# A manual run (workflow_dispatch) can target either, regardless of branch.
+#
+# Required repo secrets:
 #   SUPABASE_ACCESS_TOKEN  - account access token (Dashboard -> Account -> Access Tokens)
-#   SUPABASE_DB_PASSWORD   - the project's database password (for `db push`)
-# Optional function secrets, pushed to the project when present:
-#   ANTHROPIC_API_KEY      - enables live AI (chat/ingest/demo); without it the
-#                            harness uses its deterministic fallback
-#   BREVO_API_KEY          - enables marketing-contact sync on signup
+#   SUPABASE_PROJECT_REF / SUPABASE_DB_PASSWORD     - production project
+#   STAGING_PROJECT_REF  / STAGING_DB_PASSWORD      - staging project
+# Optional function secrets, pushed to the target project when present:
+#   ANTHROPIC_API_KEY  - enables live AI; without it the harness falls back
+#   BREVO_API_KEY      - enables marketing-contact sync on signup
 # Note: SUPABASE_URL / SUPABASE_ANON_KEY / SUPABASE_SERVICE_ROLE_KEY are injected
 # into edge functions by the platform; they are not set here.
 
 on:
+  push:
+    branches: [develop, main]
   workflow_dispatch:
     inputs:
-      project_ref:
-        description: 'Supabase project ref to deploy to'
-        required: true
-        default: 'nzmjkbjtcjthjwdscjrj'
+      environment:
+        description: 'Environment to deploy'
+        type: choice
+        options: [staging, production]
+        default: staging
       push_migrations:
         description: 'Run `supabase db push` (apply migrations)'
         type: boolean
@@ -28,30 +35,61 @@ on:
 permissions:
   contents: read
 
+# One deploy per environment at a time; never cancel a prod deploy mid-flight.
+concurrency:
+  group: deploy-${{ github.event_name == 'workflow_dispatch' && github.event.inputs.environment || (github.ref_name == 'main' && 'production' || 'staging') }}
+  cancel-in-progress: false
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
     env:
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
-      PROJECT_REF: ${{ github.event.inputs.project_ref }}
     steps:
       - uses: actions/checkout@v4
       - uses: supabase/setup-cli@v1
         with:
           version: latest
 
-      - name: Sanity-check required secrets
+      - name: Resolve target environment + project
+        id: target
+        env:
+          STAGING_PROJECT_REF: ${{ secrets.STAGING_PROJECT_REF }}
+          STAGING_DB_PASSWORD: ${{ secrets.STAGING_DB_PASSWORD }}
+          PROD_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+          PROD_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
         run: |
           if [ -z "${SUPABASE_ACCESS_TOKEN}" ]; then
             echo "SUPABASE_ACCESS_TOKEN repo secret is not set." >&2; exit 1
           fi
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            ENVIRONMENT="${{ github.event.inputs.environment }}"
+          elif [ "${{ github.ref_name }}" = "main" ]; then
+            ENVIRONMENT="production"
+          else
+            ENVIRONMENT="staging"
+          fi
+
+          if [ "${ENVIRONMENT}" = "production" ]; then
+            REF="${PROD_PROJECT_REF}"; PW="${PROD_DB_PASSWORD}"
+          else
+            REF="${STAGING_PROJECT_REF}"; PW="${STAGING_DB_PASSWORD}"
+          fi
+          if [ -z "${REF}" ]; then
+            echo "Missing project ref secret for ${ENVIRONMENT}." >&2; exit 1
+          fi
+
+          echo "::add-mask::${PW}"
+          echo "PROJECT_REF=${REF}" >> "$GITHUB_ENV"
+          echo "SUPABASE_DB_PASSWORD=${PW}" >> "$GITHUB_ENV"
+          echo "environment=${ENVIRONMENT}" >> "$GITHUB_OUTPUT"
+          echo "Deploying to ${ENVIRONMENT} (${REF})"
 
       - name: Link the project
         run: supabase link --project-ref "${PROJECT_REF}"
 
       - name: Push migrations
-        if: ${{ github.event.inputs.push_migrations == 'true' }}
+        if: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.push_migrations == 'true' }}
         run: supabase db push
 
       - name: Set function secrets (only those provided)
@@ -67,3 +105,6 @@ jobs:
 
       - name: Deploy edge functions
         run: supabase functions deploy --project-ref "${PROJECT_REF}"
+
+      - name: Summary
+        run: echo "Deployed ${{ steps.target.outputs.environment }} -> ${PROJECT_REF}" >> "$GITHUB_STEP_SUMMARY"
