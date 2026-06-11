@@ -155,6 +155,8 @@ export interface ProductSummary {
   priceId: string;
   name: string;
   amountUsd: number;
+  /** The tier this product grants on purchase (byo or ours). */
+  tier?: TripTier;
 }
 
 export interface PurchaseSummary {

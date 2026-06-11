@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Yaycay API
-  version: 0.4.0
+  version: 0.5.0
   description: >
     Yaycay back-end HTTP API. The v0.1 surface (Phase 0) is the free-demo
     generator, signup/lead capture, the 2FA verify step, and trip + trip-content
@@ -28,6 +28,8 @@ tags:
     description: Authentication helpers (2FA on every sign-in).
   - name: trips
     description: Trip CRUD and the canonical trip content payload.
+  - name: commerce
+    description: Stripe Checkout and the entitlement webhook.
   - name: admin
     description: >
       Admin-scoped, off-domain surface. Every endpoint requires a Supabase JWT
@@ -320,6 +322,90 @@ paths:
           $ref: '#/components/responses/ValidationError'
         '429':
           $ref: '#/components/responses/RateLimited'
+
+  # ===== Commerce (v0.5): Stripe Checkout + webhook =====
+
+  /checkout/session:
+    post:
+      operationId: createCheckoutSession
+      tags: [commerce]
+      summary: Create a Stripe Checkout Session for a catalogue price.
+      description: >
+        Creates a Stripe Checkout Session for a known, active product price. The
+        purchased tier is carried in the session metadata; the trip tier is only
+        flipped by the signed `/webhooks/stripe` event, never here, so
+        entitlement cannot be spoofed from the client. Returns 503 when payments
+        are not configured.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CheckoutSessionRequest'
+      responses:
+        '200':
+          description: The hosted Checkout URL.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CheckoutSessionResponse'
+        '400':
+          description: Unknown or inactive price.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '503':
+          description: Payments are not configured.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /webhooks/stripe:
+    post:
+      operationId: stripeWebhook
+      tags: [commerce]
+      summary: Stripe event sink (signature-verified; sets entitlement).
+      description: >
+        Stripe calls this directly (no JWT). The body is verified against the
+        `Stripe-Signature` header; on `checkout.session.completed` the purchase
+        is recorded and the trip tier is flipped. Idempotent on the Stripe
+        session id, so redelivered events are no-ops.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: A raw Stripe event; verified by signature, not by schema.
+      responses:
+        '200':
+          description: Event received.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [received]
+                properties:
+                  received:
+                    type: boolean
+        '400':
+          description: Signature verification failed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
   # ===== Admin-scoped surface (v0.2). All require role=admin + AAL2. =====
 
@@ -1754,6 +1840,35 @@ components:
         priceId: { type: string }
         name: { type: string }
         amountUsd: { type: number }
+        tier:
+          $ref: '#/components/schemas/Tier'
+
+    CheckoutSessionRequest:
+      type: object
+      additionalProperties: false
+      required: [price_id]
+      properties:
+        price_id:
+          type: string
+          description: Stripe price id of a known, active catalogue product.
+        trip_id:
+          type: string
+          description: Optional trip the purchased tier applies to.
+        success_url:
+          type: string
+        cancel_url:
+          type: string
+
+    CheckoutSessionResponse:
+      type: object
+      additionalProperties: false
+      required: [url, session_id]
+      properties:
+        url:
+          type: string
+          description: Stripe-hosted Checkout URL to redirect the customer to.
+        session_id:
+          type: string
 
     PurchaseSummary:
       type: object
