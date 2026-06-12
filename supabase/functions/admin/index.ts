@@ -1,7 +1,7 @@
 // Admin surface entry point. Enforces role=admin + AAL2, routes every /admin/*
 // endpoint, renders errors as RFC 9457 problem+json, and audits every call.
 
-import { corsHeaders, problem, ProblemError, notFound } from './lib/http.ts';
+import { corsHeaders, ok, problem, ProblemError, notFound } from './lib/http.ts';
 import { requireAdmin, type AdminContext } from './lib/auth.ts';
 import { writeAudit } from './lib/audit.ts';
 import * as prompts from './routes/prompts.ts';
@@ -29,6 +29,14 @@ async function route(
   const [resource, a, b] = seg;
 
   switch (resource) {
+    case 'me':
+      // The caller is already proven admin + AAL2 by requireAdmin; echo the
+      // resolved session so the Admin app gets a client-readable signal.
+      if (!a && method === 'GET') {
+        return ok({ userId: ctx.actorId, email: ctx.email, role: 'admin', mfaVerified: true });
+      }
+      break;
+
     case 'prompts':
       if (!a) {
         if (method === 'GET') return prompts.listPrompts(req, ctx);
