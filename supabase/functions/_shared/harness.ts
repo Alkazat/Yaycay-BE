@@ -86,45 +86,97 @@ export async function generateDemoDay(input: DemoDayInput): Promise<DemoDayResul
   }
 }
 
+// Tool schema for the demo day. The model fills this rather than free-typing
+// JSON, so the API guarantees the returned `input` is syntactically valid JSON -
+// no more brittle text parsing that breaks on a missing comma. The schema is
+// permissive; normaliseDay does the final coercion.
+const DAY_TOOL = {
+  name: 'build_day',
+  description: 'Return one delightful holiday day for the family.',
+  input_schema: {
+    type: 'object',
+    required: ['moments'],
+    properties: {
+      id: { type: 'string' },
+      date: { type: 'string', description: 'YYYY-MM-DD' },
+      label: { type: 'string' },
+      summary: { type: 'string' },
+      moments: {
+        type: 'array',
+        description: '3-4 moments across the day.',
+        items: {
+          type: 'object',
+          required: ['title', 'activities'],
+          properties: {
+            id: { type: 'string' },
+            slot: {
+              type: 'string',
+              enum: ['morning', 'midday', 'afternoon', 'evening', 'night', 'anytime'],
+            },
+            title: { type: 'string' },
+            time_hint: { type: 'string', description: 'HH:MM' },
+            activities: {
+              type: 'array',
+              description: '1-2 activities per moment.',
+              items: {
+                type: 'object',
+                required: ['kind', 'title'],
+                properties: {
+                  id: { type: 'string' },
+                  kind: { type: 'string', enum: ['kid', 'shared', 'adult'] },
+                  title: { type: 'string' },
+                  body: { type: 'string' },
+                  variants: {
+                    type: 'object',
+                    description:
+                      "Keyed by the child's explorer mode; each value has a fun fact and one quiz.",
+                  },
+                  safety: { type: 'object', properties: { note: { type: 'string' } } },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+};
+
 async function generateWithClaude(input: DemoDayInput, apiKey: string): Promise<Day> {
   const system =
     'You build a single delightful holiday day for a family travel app called Yaycay. ' +
-    'Return ONLY JSON matching the provided shape. The day has 3-4 moments, each with ' +
-    '1-2 activities. Use kind "kid" for child activities and "adult" for grown-up ones. ' +
-    'For the child include a variants block keyed by their explorer mode with a fun fact ' +
-    'and a single quiz. Surface any dietary flags as an activity safety note. ' +
-    'Keep copy warm and sunny. No em-dashes.';
+    'Call the build_day tool. The day has 3-4 moments, each with 1-2 activities. Use kind ' +
+    '"kid" for child activities and "adult" for grown-up ones. For the child include a ' +
+    'variants block keyed by their explorer mode with a fun fact and a single quiz. Surface ' +
+    'any dietary flags as an activity safety note. Keep copy warm and sunny. No em-dashes.';
 
-  const userPayload = {
-    destination: input.destination,
-    date: input.date,
-    child: input.child,
-    shape: {
-      id: 'string',
-      date: 'YYYY-MM-DD',
-      label: 'string',
-      summary: 'string',
-      moments: [
-        {
-          id: 'string',
-          slot: 'morning|midday|afternoon|evening|night|anytime',
-          title: 'string',
-          time_hint: 'HH:MM',
-          activities: [
-            {
-              id: 'string',
-              kind: 'kid|shared|adult',
-              title: 'string',
-              body: 'string',
-              variants: { '<mode>': { fact: 'string', quiz: { q: 'string', a: 'string' } } },
-              safety: { note: 'string' },
-            },
-          ],
-        },
-      ],
-    },
-  };
+  const data = await callAnthropicTool(apiKey, {
+    system,
+    maxTokens: 4096,
+    tool: DAY_TOOL,
+    content: `Build one day for this family:\n${JSON.stringify(
+      { destination: input.destination, date: input.date, child: input.child },
+      null,
+      2,
+    )}`,
+    surface: 'demo',
+  });
+  return normaliseDay(data, input);
+}
 
+// Shared Anthropic tool-call: forces the given tool and returns its input
+// object (already valid JSON). Throws with the response body / stop reason on
+// failure, so the caller's logAiError surfaces a usable diagnosis.
+async function callAnthropicTool(
+  apiKey: string,
+  opts: {
+    system: string;
+    maxTokens: number;
+    tool: { name: string; description: string; input_schema: unknown };
+    content: unknown[] | string;
+    surface: AiSurface;
+  },
+): Promise<unknown> {
   const res = await fetch(ANTHROPIC_URL, {
     method: 'POST',
     headers: {
@@ -134,35 +186,31 @@ async function generateWithClaude(input: DemoDayInput, apiKey: string): Promise<
     },
     body: JSON.stringify({
       model: DEFAULT_MODEL,
-      max_tokens: 2000,
-      system,
-      messages: [
-        {
-          role: 'user',
-          content: `Build one day as JSON. Inputs:\n${JSON.stringify(userPayload, null, 2)}`,
-        },
-      ],
+      max_tokens: opts.maxTokens,
+      system: opts.system,
+      tools: [opts.tool],
+      tool_choice: { type: 'tool', name: opts.tool.name },
+      messages: [{ role: 'user', content: opts.content }],
     }),
   });
 
   if (!res.ok) {
-    throw new Error(`Anthropic request failed: ${res.status} ${await res.text()}`);
+    throw new Error(`Anthropic ${opts.surface} request failed: ${res.status} ${await res.text()}`);
   }
 
   const data = await res.json();
-  const text: string =
-    Array.isArray(data?.content) && data.content[0]?.type === 'text' ? data.content[0].text : '';
-  const parsed = extractJson(text);
-  return normaliseDay(parsed, input);
-}
-
-function extractJson(text: string): unknown {
-  const start = text.indexOf('{');
-  const end = text.lastIndexOf('}');
-  if (start === -1 || end === -1 || end < start) {
-    throw new Error('No JSON object found in model output');
+  const blocks = Array.isArray(data?.content) ? data.content : [];
+  const toolUse = blocks.find(
+    (b: Record<string, unknown>) => b?.type === 'tool_use' && b?.name === opts.tool.name,
+  );
+  if (!toolUse) {
+    // A forced tool_choice should always return a tool_use block; if it did not,
+    // the stop reason explains why (e.g. max_tokens truncated the call).
+    throw new Error(
+      `Anthropic ${opts.surface}: no ${opts.tool.name} tool_use in response (stop_reason=${data?.stop_reason})`,
+    );
   }
-  return JSON.parse(text.slice(start, end + 1));
+  return (toolUse as { input: unknown }).input;
 }
 
 // Coerce model output into a well-formed Day, filling required ids/fields.
@@ -476,7 +524,7 @@ export interface IngestResult {
 
 const INGEST_SYSTEM =
   'You turn a family-holiday receipt, booking, ticket, or note into a TripContentPatch ' +
-  'for the Yaycay itinerary. Return ONLY a JSON object {"ops": [...], "note": "..."}. ' +
+  'for the Yaycay itinerary. Call the apply_patch tool with {"ops": [...], "note": "..."}. ' +
   'Choose the smallest set of ops that records the item against the right day/moment. ' +
   'Allowed ops: add_day{day}, set_day_summary{day_id,summary}, add_moment{day_id,moment}, ' +
   'add_activity{day_id,moment_id,activity}, update_activity{activity_id,set}, ' +
@@ -484,6 +532,26 @@ const INGEST_SYSTEM =
   'A booking is {name, time?, ref?, notes?}. An activity is {kind:"kid"|"shared"|"adult", ' +
   'title, body?, booking?}. Prefer attaching a booking to a relevant existing activity; ' +
   'otherwise add a new activity to a suitable moment. Use the provided ids exactly. No em-dashes.';
+
+// Tool schema for ingestion. `ops` items are a union (one key per op kind), so
+// the schema stays permissive - the API still guarantees valid JSON, and the
+// apply path validates op shapes downstream.
+const PATCH_TOOL = {
+  name: 'apply_patch',
+  description: 'Record the item as a TripContentPatch against the itinerary.',
+  input_schema: {
+    type: 'object',
+    required: ['ops'],
+    properties: {
+      ops: {
+        type: 'array',
+        description: 'The smallest set of edit ops that records the item.',
+        items: { type: 'object' },
+      },
+      note: { type: 'string', description: 'Short human-readable summary of the change.' },
+    },
+  },
+};
 
 function ingestContext(input: IngestInput): string {
   const days = (input.content?.days ?? []).map((d) => ({
@@ -524,27 +592,14 @@ export async function ingest(input: IngestInput): Promise<IngestResult> {
       });
     }
 
-    const res = await fetch(ANTHROPIC_URL, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model: DEFAULT_MODEL,
-        max_tokens: 1500,
-        system: INGEST_SYSTEM,
-        messages: [{ role: 'user', content }],
-      }),
+    const data = await callAnthropicTool(apiKey, {
+      system: INGEST_SYSTEM,
+      maxTokens: 2048,
+      tool: PATCH_TOOL,
+      content,
+      surface: 'ingest',
     });
-    if (!res.ok)
-      throw new Error(`Anthropic ingest request failed: ${res.status} ${await res.text()}`);
-
-    const data = await res.json();
-    const text: string =
-      Array.isArray(data?.content) && data.content[0]?.type === 'text' ? data.content[0].text : '';
-    const parsed = extractJson(text) as TripContentPatch;
+    const parsed = data as TripContentPatch;
     if (!parsed || !Array.isArray(parsed.ops) || parsed.ops.length === 0) {
       throw new Error('Model returned no ops');
     }
