@@ -301,6 +301,7 @@ async function handlePlanChat(
         controller.enqueue(new TextEncoder().encode('data: [DONE]\n\n'));
         await finishJob(svc, jobId, 'succeeded');
       } catch (err) {
+        console.error('plan/chat: model stream failed:', err);
         controller.enqueue(sse({ error: 'chat_failed' }));
         await finishJob(svc, jobId, 'failed', err instanceof Error ? err.message : String(err));
       } finally {
