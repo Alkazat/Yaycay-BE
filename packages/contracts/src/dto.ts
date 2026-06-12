@@ -3,7 +3,7 @@
  * in `openapi.yaml`. Clients import these rather than redeclaring shapes.
  */
 
-import type { Activity, Booking, Day, Moment, TripContent } from './trip-content.js';
+import type { Activity, Booking, Day, ExplorerMode, Moment, TripContent } from './trip-content.js';
 
 /** How a trip was bought; drives entitlement and the AI path. */
 export type Tier = 'free' | 'byo' | 'ours';
@@ -217,6 +217,10 @@ export interface JournalEntry {
   /** Optional child profile this entry is tagged to. */
   profile_id?: string | null;
   body: string;
+  /** Mood picker value for the entry. */
+  mood?: string | null;
+  /** Stars awarded with this entry. */
+  stars?: number | null;
   /** media_ref ids from `/media/sign-upload`, resolved to signed URLs on read. */
   media_ref: string[];
   created_at: string;
@@ -226,6 +230,8 @@ export interface JournalEntry {
 export interface JournalEntryInput {
   body?: string;
   profile_id?: string;
+  mood?: string;
+  stars?: number;
   media_ref?: string[];
 }
 
@@ -281,4 +287,82 @@ export interface ByoConnectorResponse {
   token: string;
   /** The MCP endpoint URL the token authenticates against. */
   mcp_url: string;
+}
+
+// ===== Progress, stars, packing (v0.7) =====================================
+
+export interface ProgressEntry {
+  /** The child profile this progress is for (null = the trip itself). */
+  profile_id: string | null;
+  active_mode?: ExplorerMode;
+  /** Stable activity ids the profile has marked done. */
+  done_items: string[];
+  updated_at: string;
+}
+
+export interface ProgressListResponse {
+  progress: ProgressEntry[];
+}
+
+/** Request body for `PATCH /trips/{tripId}/progress`. */
+export interface ProgressUpsertRequest {
+  profile_id: string;
+  active_mode?: ExplorerMode;
+  /** Replaces the profile's done-items set. */
+  done_items?: string[];
+}
+
+export interface StarLedgerEntry {
+  id: string;
+  profile_id: string | null;
+  /** Positive = earned, negative = claimed/redeemed. */
+  delta: number;
+  reason?: string | null;
+  /** challenge | game | star_challenge | manual | claim */
+  source?: string | null;
+  ref_id?: string | null;
+  created_at: string;
+}
+
+export interface StarBalance {
+  profile_id: string | null;
+  stars: number;
+}
+
+export interface StarsResponse {
+  balances: StarBalance[];
+  ledger: StarLedgerEntry[];
+}
+
+/** Request body for `POST /trips/{tripId}/stars` (earn or claim). */
+export interface AwardStarsRequest {
+  profile_id?: string;
+  delta: number;
+  reason?: string;
+  source?: string;
+  ref_id?: string;
+}
+
+export interface PackingItem {
+  id: string;
+  /** null = the shared family list. */
+  profile_id: string | null;
+  section: string;
+  label: string;
+  packed: boolean;
+  sort: number;
+  created_at: string;
+}
+
+export interface PackingListResponse {
+  items: PackingItem[];
+}
+
+/** Request body for `POST /trips/{tripId}/packing`. */
+export interface PackingItemInput {
+  profile_id?: string;
+  section?: string;
+  label: string;
+  packed?: boolean;
+  sort?: number;
 }

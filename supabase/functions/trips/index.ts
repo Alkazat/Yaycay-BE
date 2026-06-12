@@ -203,6 +203,37 @@ Deno.serve(async (req) => {
       return error('method_not_allowed', 'Use GET or POST.', 405);
     }
 
+    // /trips/:id/progress - per-profile done-items + active mode.
+    if (seg.length === 2 && seg[1] === 'progress') {
+      if (req.method === 'GET') return await handleProgressList(client, tripId, url);
+      if (req.method === 'PATCH') return await handleProgressUpsert(client, userId, tripId, req);
+      return error('method_not_allowed', 'Use GET or PATCH.', 405);
+    }
+
+    // /trips/:id/stars - reward economy ledger + balances.
+    if (seg.length === 2 && seg[1] === 'stars') {
+      if (req.method === 'GET') return await handleStarsGet(client, tripId, url);
+      if (req.method === 'POST') return await handleStarsPost(client, userId, tripId, req);
+      return error('method_not_allowed', 'Use GET or POST.', 405);
+    }
+
+    // /trips/:id/packing[...] - packing lists (per child + family).
+    if (seg.length >= 2 && seg[1] === 'packing') {
+      if (seg.length === 2) {
+        if (req.method === 'GET') return await handlePackingList(client, tripId, url);
+        if (req.method === 'POST') return await handlePackingCreate(client, userId, tripId, req);
+        return error('method_not_allowed', 'Use GET or POST.', 405);
+      }
+      if (seg.length === 3 && seg[2] === 'reset' && req.method === 'POST') {
+        return await handlePackingReset(client, tripId, url);
+      }
+      if (seg.length === 3) {
+        if (req.method === 'PATCH') return await handlePackingUpdate(client, seg[2], req);
+        if (req.method === 'DELETE') return await handlePackingDelete(client, seg[2]);
+        return error('method_not_allowed', 'Use PATCH or DELETE.', 405);
+      }
+    }
+
     return error('not_found', 'No such route.', 404);
   } catch (err) {
     if (err instanceof UnauthorizedError) {
@@ -375,7 +406,7 @@ async function handleIngest(
   }
 }
 
-const JOURNAL_COLUMNS = 'id, trip_id, profile_id, body, media_ref, created_at';
+const JOURNAL_COLUMNS = 'id, trip_id, profile_id, body, mood, stars, media_ref, created_at';
 
 async function handleJournalList(client: UserClient, tripId: string, url: URL): Promise<Response> {
   let q = client
@@ -410,6 +441,9 @@ async function handleJournalCreate(
     throw new ValidationError(['Provide body text or media_ref.']);
   }
 
+  const mood = typeof body.mood === 'string' ? body.mood : null;
+  const stars = typeof body.stars === 'number' ? body.stars : null;
+
   const { data, error: dbErr } = await client
     .from('journal_entries')
     .insert({
@@ -417,12 +451,206 @@ async function handleJournalCreate(
       user_id: userId,
       profile_id: profileId,
       body: text,
+      mood,
+      stars,
       media_ref: mediaRef,
     })
     .select(JOURNAL_COLUMNS)
     .single();
   if (dbErr) throw new Error(dbErr.message);
   return json(data, 201);
+}
+
+// ----- Progress (per-profile done-items + active mode) ----------------------
+
+const PROGRESS_COLUMNS = 'profile_id, active_mode, done_items, updated_at';
+
+async function handleProgressList(client: UserClient, tripId: string, url: URL): Promise<Response> {
+  let q = client.from('trip_progress').select(PROGRESS_COLUMNS).eq('trip_id', tripId);
+  const profileId = url.searchParams.get('profile_id');
+  if (profileId) q = q.eq('profile_id', profileId);
+  const { data, error: dbErr } = await q;
+  if (dbErr) throw new Error(dbErr.message);
+  return json({ progress: data ?? [] });
+}
+
+async function handleProgressUpsert(
+  client: UserClient,
+  userId: string,
+  tripId: string,
+  req: Request,
+): Promise<Response> {
+  const body = await readJson(req);
+  const profileId = typeof body.profile_id === 'string' ? body.profile_id : null;
+  if (!profileId) throw new ValidationError(['profile_id is required']);
+
+  const row: Record<string, unknown> = { trip_id: tripId, user_id: userId, profile_id: profileId };
+  if (typeof body.active_mode === 'string') row.active_mode = body.active_mode;
+  if (Array.isArray(body.done_items)) {
+    row.done_items = (body.done_items as unknown[]).filter(
+      (x): x is string => typeof x === 'string',
+    );
+  }
+
+  const { data, error: dbErr } = await client
+    .from('trip_progress')
+    .upsert(row, { onConflict: 'trip_id,profile_id' })
+    .select(PROGRESS_COLUMNS)
+    .single();
+  if (dbErr) throw new Error(dbErr.message);
+  return json(data);
+}
+
+// ----- Stars (reward economy) ----------------------------------------------
+
+async function handleStarsGet(client: UserClient, tripId: string, url: URL): Promise<Response> {
+  const profileFilter = url.searchParams.get('profile_id');
+  let q = client
+    .from('star_ledger')
+    .select('id, profile_id, delta, reason, source, ref_id, created_at')
+    .eq('trip_id', tripId)
+    .order('created_at', { ascending: false });
+  if (profileFilter) q = q.eq('profile_id', profileFilter);
+  const { data, error: dbErr } = await q;
+  if (dbErr) throw new Error(dbErr.message);
+  const ledger = data ?? [];
+
+  // Balance per profile = sum of its deltas.
+  const balances: Record<string, number> = {};
+  for (const e of ledger) {
+    const key = (e.profile_id as string) ?? 'family';
+    balances[key] = (balances[key] ?? 0) + (e.delta as number);
+  }
+  return json({
+    balances: Object.entries(balances).map(([profile_id, stars]) => ({
+      profile_id: profile_id === 'family' ? null : profile_id,
+      stars,
+    })),
+    ledger,
+  });
+}
+
+async function handleStarsPost(
+  client: UserClient,
+  userId: string,
+  tripId: string,
+  req: Request,
+): Promise<Response> {
+  const body = await readJson(req);
+  const delta = typeof body.delta === 'number' ? Math.trunc(body.delta) : NaN;
+  if (!Number.isFinite(delta) || delta === 0) {
+    throw new ValidationError(['delta must be a non-zero integer']);
+  }
+  const profileId = typeof body.profile_id === 'string' ? body.profile_id : null;
+
+  // A claim (negative delta) cannot take the balance below zero.
+  if (delta < 0) {
+    let q = client.from('star_ledger').select('delta').eq('trip_id', tripId);
+    q = profileId ? q.eq('profile_id', profileId) : q.is('profile_id', null);
+    const { data: rows, error: balErr } = await q;
+    if (balErr) throw new Error(balErr.message);
+    const balance = (rows ?? []).reduce((s, r) => s + (r.delta as number), 0);
+    if (balance + delta < 0) {
+      throw new ValidationError([`Insufficient stars: balance ${balance}, claim ${-delta}`]);
+    }
+  }
+
+  const { error: dbErr } = await client.from('star_ledger').insert({
+    user_id: userId,
+    trip_id: tripId,
+    profile_id: profileId,
+    delta,
+    reason: typeof body.reason === 'string' ? body.reason : null,
+    source: typeof body.source === 'string' ? body.source : null,
+    ref_id: typeof body.ref_id === 'string' ? body.ref_id : null,
+  });
+  if (dbErr) throw new Error(dbErr.message);
+  return handleStarsGet(client, tripId, new URL(`https://x/?profile_id=${profileId ?? ''}`));
+}
+
+// ----- Packing lists --------------------------------------------------------
+
+const PACKING_COLUMNS = 'id, profile_id, section, label, packed, sort, created_at';
+
+async function handlePackingList(client: UserClient, tripId: string, url: URL): Promise<Response> {
+  let q = client
+    .from('packing_items')
+    .select(PACKING_COLUMNS)
+    .eq('trip_id', tripId)
+    .order('section', { ascending: true })
+    .order('sort', { ascending: true });
+  const profileId = url.searchParams.get('profile_id');
+  if (profileId)
+    q = profileId === 'family' ? q.is('profile_id', null) : q.eq('profile_id', profileId);
+  const { data, error: dbErr } = await q;
+  if (dbErr) throw new Error(dbErr.message);
+  return json({ items: data ?? [] });
+}
+
+async function handlePackingCreate(
+  client: UserClient,
+  userId: string,
+  tripId: string,
+  req: Request,
+): Promise<Response> {
+  const body = await readJson(req);
+  const label = typeof body.label === 'string' ? body.label.trim() : '';
+  if (!label) throw new ValidationError(['label is required']);
+  const { data, error: dbErr } = await client
+    .from('packing_items')
+    .insert({
+      trip_id: tripId,
+      user_id: userId,
+      profile_id: typeof body.profile_id === 'string' ? body.profile_id : null,
+      section: typeof body.section === 'string' ? body.section : 'General',
+      label,
+      packed: body.packed === true,
+      sort: typeof body.sort === 'number' ? body.sort : 0,
+    })
+    .select(PACKING_COLUMNS)
+    .single();
+  if (dbErr) throw new Error(dbErr.message);
+  return json(data, 201);
+}
+
+async function handlePackingUpdate(
+  client: UserClient,
+  itemId: string,
+  req: Request,
+): Promise<Response> {
+  const body = await readJson(req);
+  const patch: Record<string, unknown> = {};
+  if (typeof body.label === 'string') patch.label = body.label;
+  if (typeof body.section === 'string') patch.section = body.section;
+  if (typeof body.packed === 'boolean') patch.packed = body.packed;
+  if (typeof body.sort === 'number') patch.sort = body.sort;
+  if (Object.keys(patch).length === 0) throw new ValidationError(['No updatable fields provided']);
+
+  const { data, error: dbErr } = await client
+    .from('packing_items')
+    .update(patch)
+    .eq('id', itemId)
+    .select(PACKING_COLUMNS)
+    .maybeSingle();
+  if (dbErr) throw new Error(dbErr.message);
+  if (!data) throw new NotFoundError();
+  return json(data);
+}
+
+async function handlePackingDelete(client: UserClient, itemId: string): Promise<Response> {
+  const { error: dbErr } = await client.from('packing_items').delete().eq('id', itemId);
+  if (dbErr) throw new Error(dbErr.message);
+  return json({ deleted: true });
+}
+
+async function handlePackingReset(client: UserClient, tripId: string, url: URL): Promise<Response> {
+  let q = client.from('packing_items').update({ packed: false }).eq('trip_id', tripId);
+  const profileId = url.searchParams.get('profile_id');
+  if (profileId)
+    q = profileId === 'family' ? q.is('profile_id', null) : q.eq('profile_id', profileId);
+  const { error: dbErr } = await q;
+  if (dbErr) throw new Error(dbErr.message);
+  return json({ reset: true });
 }
 
 async function tripDestination(client: UserClient, tripId: string): Promise<string> {

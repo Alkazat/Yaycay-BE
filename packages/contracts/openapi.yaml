@@ -523,6 +523,230 @@ paths:
               schema:
                 type: object
 
+  # ===== Progress / stars / packing (v0.7) =====
+
+  /trips/{tripId}/progress:
+    parameters:
+      - $ref: '#/components/parameters/TripId'
+    get:
+      operationId: listProgress
+      tags: [trips]
+      summary: Per-profile progress (done-items + active mode).
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: profile_id
+          in: query
+          required: false
+          schema: { type: string }
+      responses:
+        '200':
+          description: Progress rows for the trip.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProgressListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    patch:
+      operationId: upsertProgress
+      tags: [trips]
+      summary: Set a profile's progress (done-items / active mode).
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProgressUpsertRequest'
+      responses:
+        '200':
+          description: The updated progress row.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProgressEntry'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /trips/{tripId}/stars:
+    parameters:
+      - $ref: '#/components/parameters/TripId'
+    get:
+      operationId: getStars
+      tags: [trips]
+      summary: Star balances per profile + the ledger.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: profile_id
+          in: query
+          required: false
+          schema: { type: string }
+      responses:
+        '200':
+          description: Balances and ledger.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StarsResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      operationId: awardStars
+      tags: [trips]
+      summary: Earn or claim stars (positive or negative delta).
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AwardStarsRequest'
+      responses:
+        '200':
+          description: The updated balances and ledger.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StarsResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /trips/{tripId}/packing:
+    parameters:
+      - $ref: '#/components/parameters/TripId'
+    get:
+      operationId: listPacking
+      tags: [trips]
+      summary: List packing items (filter by profile; `family` for the shared list).
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: profile_id
+          in: query
+          required: false
+          schema: { type: string }
+      responses:
+        '200':
+          description: Packing items.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PackingListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      operationId: createPackingItem
+      tags: [trips]
+      summary: Add a packing item.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PackingItemInput'
+      responses:
+        '201':
+          description: The created item.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PackingItem'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /trips/{tripId}/packing/reset:
+    parameters:
+      - $ref: '#/components/parameters/TripId'
+    post:
+      operationId: resetPacking
+      tags: [trips]
+      summary: Untick all packing items (optionally for one profile).
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: profile_id
+          in: query
+          required: false
+          schema: { type: string }
+      responses:
+        '200':
+          description: Reset done.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [reset]
+                properties:
+                  reset: { type: boolean }
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /trips/{tripId}/packing/{id}:
+    parameters:
+      - $ref: '#/components/parameters/TripId'
+      - $ref: '#/components/parameters/Id'
+    patch:
+      operationId: updatePackingItem
+      tags: [trips]
+      summary: Update a packing item (tick, rename, re-section, reorder).
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                label: { type: string }
+                section: { type: string }
+                packed: { type: boolean }
+                sort: { type: integer }
+      responses:
+        '200':
+          description: The updated item.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PackingItem'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      operationId: deletePackingItem
+      tags: [trips]
+      summary: Delete a packing item.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Deleted.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [deleted]
+                properties:
+                  deleted: { type: boolean }
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
   # ===== Commerce (v0.5): Stripe Checkout + webhook =====
 
   /checkout/session:
@@ -1980,6 +2204,8 @@ components:
         trip_id: { type: string }
         profile_id: { type: [string, 'null'] }
         body: { type: string }
+        mood: { type: [string, 'null'] }
+        stars: { type: [integer, 'null'] }
         media_ref:
           type: array
           items: { type: string }
@@ -1991,6 +2217,8 @@ components:
       properties:
         body: { type: string }
         profile_id: { type: string }
+        mood: { type: string }
+        stars: { type: integer }
         media_ref:
           type: array
           items: { type: string }
@@ -2021,6 +2249,121 @@ components:
         path: { type: string }
         upload_url: { type: string }
         token: { type: string }
+
+    # ===== Progress / stars / packing schemas (v0.7) =====
+
+    ProgressEntry:
+      type: object
+      additionalProperties: false
+      required: [profile_id, done_items, updated_at]
+      properties:
+        profile_id: { type: [string, 'null'] }
+        active_mode:
+          type: string
+          enum: [little, standard, explorer, explorer_plus]
+        done_items:
+          type: array
+          items: { type: string }
+        updated_at: { type: string, format: date-time }
+
+    ProgressListResponse:
+      type: object
+      additionalProperties: false
+      required: [progress]
+      properties:
+        progress:
+          type: array
+          items: { $ref: '#/components/schemas/ProgressEntry' }
+
+    ProgressUpsertRequest:
+      type: object
+      additionalProperties: false
+      required: [profile_id]
+      properties:
+        profile_id: { type: string }
+        active_mode:
+          type: string
+          enum: [little, standard, explorer, explorer_plus]
+        done_items:
+          type: array
+          items: { type: string }
+
+    StarLedgerEntry:
+      type: object
+      additionalProperties: false
+      required: [id, profile_id, delta, created_at]
+      properties:
+        id: { type: string }
+        profile_id: { type: [string, 'null'] }
+        delta: { type: integer }
+        reason: { type: [string, 'null'] }
+        source: { type: [string, 'null'] }
+        ref_id: { type: [string, 'null'] }
+        created_at: { type: string, format: date-time }
+
+    StarBalance:
+      type: object
+      additionalProperties: false
+      required: [profile_id, stars]
+      properties:
+        profile_id: { type: [string, 'null'] }
+        stars: { type: integer }
+
+    StarsResponse:
+      type: object
+      additionalProperties: false
+      required: [balances, ledger]
+      properties:
+        balances:
+          type: array
+          items: { $ref: '#/components/schemas/StarBalance' }
+        ledger:
+          type: array
+          items: { $ref: '#/components/schemas/StarLedgerEntry' }
+
+    AwardStarsRequest:
+      type: object
+      additionalProperties: false
+      required: [delta]
+      properties:
+        profile_id: { type: string }
+        delta: { type: integer }
+        reason: { type: string }
+        source: { type: string }
+        ref_id: { type: string }
+
+    PackingItem:
+      type: object
+      additionalProperties: false
+      required: [id, profile_id, section, label, packed, sort, created_at]
+      properties:
+        id: { type: string }
+        profile_id: { type: [string, 'null'] }
+        section: { type: string }
+        label: { type: string }
+        packed: { type: boolean }
+        sort: { type: integer }
+        created_at: { type: string, format: date-time }
+
+    PackingListResponse:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/PackingItem' }
+
+    PackingItemInput:
+      type: object
+      additionalProperties: false
+      required: [label]
+      properties:
+        profile_id: { type: string }
+        section: { type: string }
+        label: { type: string }
+        packed: { type: boolean }
+        sort: { type: integer }
 
     # ===== BYO-AI MCP schemas (v0.6) =====
 
