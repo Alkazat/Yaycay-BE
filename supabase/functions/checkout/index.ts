@@ -15,6 +15,8 @@ interface ProductRow {
   price_id: string;
   tier: string | null;
   active: boolean;
+  kind: string;
+  extends_months: number | null;
 }
 
 Deno.serve(async (req) => {
@@ -52,10 +54,11 @@ Deno.serve(async (req) => {
       ]);
     }
 
-    // The price must be a known, active product; its tier is what we grant.
+    // The price must be a known, active product; its kind decides what the
+    // webhook grants - a tier entitlement, or a keep-token retention extension.
     const { data: product, error: prodErr } = await client
       .from('products')
-      .select('price_id, tier, active')
+      .select('price_id, tier, active, kind, extends_months')
       .eq('price_id', priceId)
       .maybeSingle();
     if (prodErr) throw new Error(prodErr.message);
@@ -64,16 +67,26 @@ Deno.serve(async (req) => {
       return error('unknown_price', 'No such purchasable product.', 400, [priceId]);
     }
 
-    // Optional trip scoping: if given, the caller must own it (RLS).
+    // Trip scoping. A keep-token always applies to a specific trip; tier
+    // products may carry a trip but don't require one. If given, the caller must
+    // own the trip (RLS hides others').
     const tripId = typeof body.trip_id === 'string' ? body.trip_id : undefined;
+    if (p.kind === 'keep' && !tripId) {
+      return error('validation_error', 'trip_id is required to buy a keep-token.', 422, [
+        'trip_id',
+      ]);
+    }
     if (tripId) {
       const { data: trip } = await client.from('trips').select('id').eq('id', tripId).maybeSingle();
       if (!trip) return error('not_found', 'Trip not found or not visible to the caller.', 404);
     }
 
-    const metadata: Record<string, string> = { user_id: userId, price_id: priceId };
+    // Metadata is echoed back on the webhook event; it is what confers
+    // entitlement, so it carries everything the webhook needs to act.
+    const metadata: Record<string, string> = { user_id: userId, price_id: priceId, kind: p.kind };
     if (tripId) metadata.trip_id = tripId;
-    if (p.tier) metadata.tier = p.tier;
+    if (p.kind === 'tier' && p.tier) metadata.tier = p.tier;
+    if (p.kind === 'keep' && p.extends_months) metadata.extends_months = String(p.extends_months);
 
     const session = await createCheckoutSession(optionalEnv('STRIPE_SECRET_KEY')!, {
       priceId,

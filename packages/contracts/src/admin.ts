@@ -153,12 +153,50 @@ export interface CustomerSummary {
   deletionRequested: boolean;
 }
 
+/**
+ * What a catalogue product confers on purchase: a trip `tier` entitlement, or a
+ * `keep`-token that extends a trip's data retention by `extendsMonths`.
+ */
+export type ProductKind = 'tier' | 'keep';
+
 export interface ProductSummary {
   priceId: string;
   name: string;
   amountUsd: number;
-  /** The tier this product grants on purchase (byo or ours). */
+  /** What the product grants: a tier entitlement, or a keep-token. */
+  kind: ProductKind;
+  /** For `kind: 'tier'`, the tier granted on purchase (byo or ours). */
   tier?: TripTier;
+  /** For `kind: 'keep'`, months of retention a purchase adds. */
+  extendsMonths?: number | null;
+  /** Inactive products are hidden from the customer catalogue but kept for history. */
+  active: boolean;
+}
+
+/** Request body for `POST /admin/products` (admin). */
+export interface CreateProductRequest {
+  /** The Stripe price id this catalogue row maps to. */
+  priceId: string;
+  name: string;
+  amountUsd: number;
+  /** Defaults to `tier` when omitted. */
+  kind?: ProductKind;
+  /** Required for `kind: 'tier'`; the tier granted on purchase. */
+  tier?: TripTier;
+  /** Required for `kind: 'keep'`; positive months of retention a purchase adds. */
+  extendsMonths?: number;
+  /** Defaults to true. */
+  active?: boolean;
+}
+
+/** Request body for `PATCH /admin/products/{priceId}` (admin). All fields optional. */
+export interface UpdateProductRequest {
+  name?: string;
+  amountUsd?: number;
+  kind?: ProductKind;
+  tier?: TripTier | null;
+  extendsMonths?: number | null;
+  active?: boolean;
 }
 
 export interface PurchaseSummary {
