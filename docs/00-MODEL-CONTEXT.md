@@ -40,7 +40,7 @@
             ┌──────────────────────────────────────────────┐
    FE (PWA) │  Planning (chat: ours/BYO)  +  Holidaying     │
             └───────────────┬──────────────────────────────┘
-                            │  @yaycay/contracts (types + OpenAPI)
+                            │  @alkazat/contracts (types + OpenAPI)
                             ▼
             ┌──────────────────────────────────────────────┐
    BE       │ API · AI harness · MCP · Stripe · webhooks    │
@@ -58,18 +58,18 @@
 
 ## 3. The shared contract (the handshake)
 
-The contract is a published package, **`@yaycay/contracts`**, generated and owned by BE and consumed by FE, Admin and Website.
+The contract is a published package, **`@alkazat/contracts`**, generated and owned by BE and consumed by FE, Admin and Website. (The scope is `@alkazat` - it must match the GitHub org that owns the package; an earlier `@yaycay/contracts` name was never published.) It ships to GitHub Packages: consumers add `@alkazat:registry=https://npm.pkg.github.com` to `.npmrc` and authenticate with a `read:packages` token. The authoritative record of what is published, reconciled, or deferred lives in `Yaycay-BE/docs/CONTRACT-STATUS.md` - read it alongside this section.
 
 It contains:
 - **OpenAPI 3.1 spec** for the HTTP API (`openapi.yaml`).
 - **TypeScript types** generated from the schema (`dist/index.d.ts`) - request/response DTOs, the `TripContent` model, enums.
 - **JSON Schemas** for the canonical content model (`schemas/trip-content.schema.json`) and the MCP tool inputs.
-- **Semantic version.** Clients pin a version (e.g. `^0.4.0`). Breaking changes bump major.
+- **Semantic version.** Clients pin a version (current: `^0.8.0`). Breaking changes bump major.
 
 **Change protocol (how threads stay in sync):**
 1. A thread that needs a new/changed endpoint or field opens a PR against the **contract** in `Yaycay-BE` describing the change.
 2. BE implements it, bumps the contract version, publishes (GitHub Packages or a tagged release).
-3. Consuming threads bump their pinned version and adapt. CI fails a consumer if it uses a field not in its pinned contract.
+3. Consuming threads bump their pinned version and adapt. (Intended guardrail: a consumer's CI fails if it uses a field not in its pinned contract. This is **not yet wired** - no consumer installs the package today; each keeps a local stub typed to match the published version. Until the package is adopted and the check added, drift is caught only by review, so consumers MUST re-sync their stub on every contract bump.)
 
 **Golden rule:** FE / Admin / Website never call an endpoint or read a field that is not in the contract. BE never ships a breaking change without a major bump.
 

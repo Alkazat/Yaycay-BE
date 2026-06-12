@@ -1,7 +1,7 @@
 # Yaycay Back-End - Handoff
 
 **Repo:** `github.com/Alkazat/Yaycay-BE`
-**Read `00-MODEL-CONTEXT.md` first.** This thread **owns the shared contract** (`@yaycay/contracts`). FE, Admin and Website depend on what you publish, so the contract is your primary deliverable alongside the code.
+**Read `00-MODEL-CONTEXT.md` first.** This thread **owns the shared contract** (`@alkazat/contracts`). FE, Admin and Website depend on what you publish, so the contract is your primary deliverable alongside the code.
 
 ---
 
@@ -23,7 +23,7 @@ The platform core: the API, the database + RLS, the model-agnostic AI harness, t
 
 ## You own the contract
 
-Publish `@yaycay/contracts` containing:
+Publish `@alkazat/contracts` containing:
 - `openapi.yaml` (3.1) - every endpoint below.
 - generated `*.d.ts` - request/response DTOs + `TripContent`.
 - `schemas/trip-content.schema.json` and the MCP tool input schemas.
