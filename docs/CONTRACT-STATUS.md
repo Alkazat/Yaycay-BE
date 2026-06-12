@@ -17,7 +17,7 @@ GitHub Packages registry for the `@alkazat` scope:
 @alkazat:registry=https://npm.pkg.github.com
 ```
 
-Current version: **`0.7.0`**. Pin `@alkazat/contracts@^0.7.0` (the admin surface
+Current version: **`0.8.0`**. Pin `@alkazat/contracts@^0.8.0` (the admin surface
 that earlier handoffs called `^0.2.0` ships within this range).
 
 GitHub Packages requires auth to install **even public packages**. Each consumer
@@ -119,8 +119,30 @@ server-resolved (not a claim). Audit sink is `public.admin_audit_log`
 | `POST /media/sign-upload` | `SignUploadResponse` (signed Storage URL, paid) | ✅ served (v0.6) |
 | `POST /connectors/byo-ai` · `GET /connectors` · `POST /mcp` | BYO-AI MCP (tier=byo) | ✅ served (v0.6) |
 | `GET /admin/me` | `AdminSession` (role + MFA) | ✅ served (v0.6) |
+| `GET /admin/products` | `{ items: ProductSummary[] }` (all, incl. inactive) | ✅ served (v0.8) |
+| `POST /admin/products` | `ProductSummary` (add a catalogue product) | ✅ served (v0.8) |
+| `PATCH /admin/products/:priceId` | `ProductSummary` (edit price/kind/entitlement/active) | ✅ served (v0.8) |
 | `POST /checkout/session` | `CheckoutSessionResponse` (Stripe Checkout URL) | ✅ served (v0.5) |
-| `POST /webhooks/stripe` | `{ received }` (signature-verified; flips trip tier) | ✅ served (v0.5) |
+| `POST /webhooks/stripe` | `{ received }` (tier flip **or** keep-token retention extension) | ✅ served (v0.5/v0.8) |
+
+### Phase 2: retention, disposal, and the keep-token (v0.8)
+
+- **Retention default.** Every trip gets `retention_expires_at` on creation —
+  12 months after the holiday (`end_date`/`start_date`, else today). FE already
+  surfaces this via `TripSummary.data_kept` (false once past the date).
+- **Keep-token upsell.** A product with `kind: 'keep'` and `extendsMonths` is a
+  keep-token. `POST /checkout/session` with that price (a `trip_id` is required)
+  → on the completed-checkout webhook the trip's `retention_expires_at` is pushed
+  forward by `extendsMonths` (from the later of now and the current expiry).
+  Tier products (`kind: 'tier'`) still confer `byo`/`ours` as before.
+- **Product kinds.** `ProductSummary` now carries `kind` (`tier|keep`),
+  `extendsMonths`, and `active`. Admin manages the catalogue via `POST`/`PATCH
+  /admin/products`; the customer catalogue read remains active-only.
+- **Disposal job.** A daily sweep deletes trips past their retention date. It
+  runs in-DB via pg_cron where available, and is also exposed as an internal
+  `POST /disposal` edge endpoint (guarded by `DISPOSAL_SECRET`, header
+  `x-disposal-secret`) for an external scheduler. Not a consumer endpoint — it
+  is infrastructure, so it is not in the OpenAPI client surface.
 
 ### v0.1 reconciliations (resolved)
 
@@ -151,10 +173,14 @@ These are specced by consumers but not built. They will be added to the contract
 Stripe price must be seeded there with the tier it grants, e.g.:
 
 ```sql
-insert into public.products (price_id, name, amount_usd, tier) values
-  ('price_xxx_ours', 'Use Our AI', 49, 'ours'),
-  ('price_xxx_byo',  'Bring Your Own AI', 29, 'byo');
+-- tier products grant an entitlement; a keep-token extends retention.
+insert into public.products (price_id, name, amount_usd, kind, tier, extends_months) values
+  ('price_xxx_ours', 'Use Our AI',        49, 'tier', 'ours', null),
+  ('price_xxx_byo',  'Bring Your Own AI', 29, 'tier', 'byo',  null),
+  ('price_xxx_keep', 'Keep our memories', 9,  'keep', null,   12);
 ```
+
+Or manage the catalogue from Admin via `POST`/`PATCH /admin/products` — no SQL.
 
 Stripe keys are per environment (test on staging, live on prod). Add repo
 secrets: production uses `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET`; staging

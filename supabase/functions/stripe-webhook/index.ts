@@ -56,6 +56,7 @@ async function handleCheckoutCompleted(event: Record<string, unknown>): Promise<
   const metadata = (session.metadata ?? {}) as Record<string, string>;
   const userId = metadata.user_id || null;
   const tripId = metadata.trip_id || null;
+  const kind = metadata.kind === 'keep' ? 'keep' : 'tier';
   const tier = PAID_TIERS.has(metadata.tier) ? metadata.tier : null;
   const paymentIntent = typeof session.payment_intent === 'string' ? session.payment_intent : null;
   const amountUsd = typeof session.amount_total === 'number' ? session.amount_total / 100 : null;
@@ -80,8 +81,43 @@ async function handleCheckoutCompleted(event: Record<string, unknown>): Promise<
   }
 
   // First time we have seen this session: confer the entitlement.
-  if (tripId && tier) {
+  if (tripId && kind === 'keep') {
+    await extendRetention(db, tripId, Number(metadata.extends_months));
+  } else if (tripId && tier) {
     const { error: updErr } = await db.from('trips').update({ tier }).eq('id', tripId);
     if (updErr) throw new Error(updErr.message);
   }
+}
+
+/**
+ * Push a trip's disposal date forward by `months`, measured from the later of
+ * now and its current expiry, so a keep-token always extends retention. Mirrors
+ * app.extend_trip_retention; done here over the service role to avoid exposing
+ * the app schema to PostgREST.
+ */
+async function extendRetention(
+  db: ReturnType<typeof serviceClient>,
+  tripId: string,
+  months: number,
+): Promise<void> {
+  if (!Number.isInteger(months) || months <= 0) return;
+  const { data: trip, error: selErr } = await db
+    .from('trips')
+    .select('retention_expires_at')
+    .eq('id', tripId)
+    .maybeSingle();
+  if (selErr) throw new Error(selErr.message);
+  if (!trip) return;
+
+  const now = new Date();
+  const current = trip.retention_expires_at ? new Date(trip.retention_expires_at) : null;
+  const from = current && current > now ? current : now;
+  const next = new Date(from);
+  next.setMonth(next.getMonth() + months);
+
+  const { error: updErr } = await db
+    .from('trips')
+    .update({ retention_expires_at: next.toISOString() })
+    .eq('id', tripId);
+  if (updErr) throw new Error(updErr.message);
 }

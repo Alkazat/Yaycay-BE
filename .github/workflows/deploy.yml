@@ -20,6 +20,8 @@ name: Deploy
 #     project as STRIPE_SECRET_KEY / STRIPE_WEBHOOK_SECRET for the functions.
 #   MCP_TOKEN_SIGNING_SECRET - signs BYO-AI connector tokens (any strong random
 #     string); without it the MCP endpoint and connector minting return an error.
+#   DISPOSAL_SECRET - shared secret guarding the /disposal sweep endpoint (any
+#     strong random string); without it the endpoint reports disabled.
 # Note: SUPABASE_URL / SUPABASE_ANON_KEY / SUPABASE_SERVICE_ROLE_KEY are injected
 # into edge functions by the platform; they are not set here.
 
@@ -109,6 +111,7 @@ jobs:
           STAGING_STRIPE_SECRET_KEY: ${{ secrets.STAGING_STRIPE_SECRET_KEY }}
           STAGING_STRIPE_WEBHOOK_SECRET: ${{ secrets.STAGING_STRIPE_WEBHOOK_SECRET }}
           MCP_TOKEN_SIGNING_SECRET: ${{ secrets.MCP_TOKEN_SIGNING_SECRET }}
+          DISPOSAL_SECRET: ${{ secrets.DISPOSAL_SECRET }}
         run: |
           if [ "${ENVIRONMENT}" = "production" ]; then
             STRIPE_KEY="${PROD_STRIPE_SECRET_KEY}"; STRIPE_WH="${PROD_STRIPE_WEBHOOK_SECRET}"
@@ -121,6 +124,7 @@ jobs:
           [ -n "${STRIPE_KEY}" ] && set -- "$@" "STRIPE_SECRET_KEY=${STRIPE_KEY}"
           [ -n "${STRIPE_WH}" ] && set -- "$@" "STRIPE_WEBHOOK_SECRET=${STRIPE_WH}"
           [ -n "${MCP_TOKEN_SIGNING_SECRET}" ] && set -- "$@" "MCP_TOKEN_SIGNING_SECRET=${MCP_TOKEN_SIGNING_SECRET}"
+          [ -n "${DISPOSAL_SECRET}" ] && set -- "$@" "DISPOSAL_SECRET=${DISPOSAL_SECRET}"
           if [ "$#" -gt 0 ]; then
             supabase secrets set --project-ref "${PROJECT_REF}" "$@"
           else

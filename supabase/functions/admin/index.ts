@@ -90,7 +90,12 @@ async function route(
       break;
 
     case 'products':
-      if (!a && method === 'GET') return commerce.listProducts(req, ctx);
+      if (!a) {
+        if (method === 'GET') return commerce.listProducts(req, ctx);
+        if (method === 'POST') return commerce.createProduct(req, ctx);
+      } else if (!b) {
+        if (method === 'PATCH') return commerce.updateProduct(req, ctx, a);
+      }
       break;
 
     case 'purchases':

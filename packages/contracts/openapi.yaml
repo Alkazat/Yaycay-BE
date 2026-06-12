@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Yaycay API
-  version: 0.7.0
+  version: 0.8.0
   description: >
     Yaycay back-end HTTP API. The v0.1 surface (Phase 0) is the free-demo
     generator, signup/lead capture, the 2FA verify step, and trip + trip-content
@@ -1150,7 +1150,7 @@ paths:
     get:
       operationId: listProducts
       tags: [admin]
-      summary: Catalogue (price id, name, amount).
+      summary: Catalogue management (all products, active and inactive).
       security:
         - adminAuth: []
       responses:
@@ -1169,6 +1169,63 @@ paths:
                       $ref: '#/components/schemas/ProductSummary'
         '403':
           $ref: '#/components/responses/Forbidden'
+    post:
+      operationId: createProduct
+      tags: [admin]
+      summary: Add a catalogue product mapping a Stripe price to an entitlement.
+      security:
+        - adminAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateProductRequest'
+      responses:
+        '201':
+          description: The created product.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductSummary'
+        '400':
+          $ref: '#/components/responses/ProblemBadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ProblemUnprocessable'
+
+  /admin/products/{priceId}:
+    patch:
+      operationId: updateProduct
+      tags: [admin]
+      summary: Update a catalogue product (price, name, kind, entitlement, active).
+      security:
+        - adminAuth: []
+      parameters:
+        - name: priceId
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateProductRequest'
+      responses:
+        '200':
+          description: The updated product.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductSummary'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/ProblemNotFound'
+        '422':
+          $ref: '#/components/responses/ProblemUnprocessable'
 
   /admin/purchases:
     get:
@@ -1285,6 +1342,18 @@ components:
             $ref: '#/components/schemas/Problem'
     ProblemNotFound:
       description: Resource not found.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    ProblemBadRequest:
+      description: The request could not be processed (e.g. duplicate price id).
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    ProblemUnprocessable:
+      description: A field failed validation.
       content:
         application/problem+json:
           schema:
@@ -2252,16 +2321,67 @@ components:
           format: date-time
         deletionRequested: { type: boolean }
 
+    ProductKind:
+      type: string
+      enum: [tier, keep]
+      description: >
+        What a product confers on purchase: `tier` grants a trip entitlement;
+        `keep` is a keep-token that extends a trip's data retention.
+
     ProductSummary:
       type: object
       additionalProperties: false
-      required: [priceId, name, amountUsd]
+      required: [priceId, name, amountUsd, kind, active]
       properties:
         priceId: { type: string }
         name: { type: string }
         amountUsd: { type: number }
+        kind:
+          $ref: '#/components/schemas/ProductKind'
         tier:
           $ref: '#/components/schemas/Tier'
+        extendsMonths:
+          type: integer
+          nullable: true
+          description: 'For `kind: keep`, months of retention a purchase adds.'
+        active: { type: boolean }
+
+    CreateProductRequest:
+      type: object
+      additionalProperties: false
+      required: [priceId, name, amountUsd]
+      properties:
+        priceId:
+          type: string
+          description: The Stripe price id this catalogue row maps to.
+        name: { type: string }
+        amountUsd: { type: number }
+        kind:
+          $ref: '#/components/schemas/ProductKind'
+        tier:
+          $ref: '#/components/schemas/Tier'
+        extendsMonths:
+          type: integer
+          minimum: 1
+          description: 'Required for `kind: keep`; months of retention a purchase adds.'
+        active: { type: boolean, default: true }
+
+    UpdateProductRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        name: { type: string }
+        amountUsd: { type: number }
+        kind:
+          $ref: '#/components/schemas/ProductKind'
+        tier:
+          allOf: [{ $ref: '#/components/schemas/Tier' }]
+          nullable: true
+        extendsMonths:
+          type: integer
+          minimum: 1
+          nullable: true
+        active: { type: boolean }
 
     CheckoutSessionRequest:
       type: object

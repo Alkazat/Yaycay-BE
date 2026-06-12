@@ -77,3 +77,8 @@ verify_jwt = false
 # verifies the Stripe signature instead.
 [functions.stripe-webhook]
 verify_jwt = false
+
+# The retention disposal sweep is triggered by a scheduler, not a user, so the
+# gateway must not require a JWT; the handler checks a shared DISPOSAL_SECRET.
+[functions.disposal]
+verify_jwt = false
