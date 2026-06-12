@@ -5,7 +5,45 @@
 export type MomentSlot = 'morning' | 'midday' | 'afternoon' | 'evening' | 'night' | 'anytime';
 
 export type ActivityKind = 'kid' | 'shared' | 'adult';
-export type ExplorerMode = 'little' | 'explorer' | 'explorer_plus';
+export type ExplorerMode = 'little' | 'standard' | 'explorer' | 'explorer_plus';
+
+export type ChallengeType = 'quiz' | 'spot' | 'photo' | 'challenge';
+
+export interface Challenge {
+  type: ChallengeType;
+  prompt: string;
+  answer?: string;
+  options?: string[];
+  stars?: number;
+}
+
+export interface Weather {
+  summary?: string;
+  high?: number;
+  low?: number;
+  icon?: string;
+}
+
+export interface Hotel {
+  name?: string;
+  phase?: 'arrive' | 'stay' | 'depart' | 'move';
+  checkin?: string;
+  checkout?: string;
+  note?: string;
+}
+
+export interface Game {
+  type: 'tap_collect' | 'colouring' | 'spot_it';
+  title?: string;
+  stars?: number;
+  config?: Record<string, unknown>;
+}
+
+export interface StarChallenge {
+  title: string;
+  prompt?: string;
+  stars?: number;
+}
 
 export interface Quiz {
   q: string;
@@ -43,6 +81,8 @@ export interface Activity {
   safety?: Safety;
   /** References to media rows; resolved to signed URLs at read time. */
   media_ref?: string[];
+  facts?: string[];
+  challenge?: Challenge;
 }
 
 export interface Moment {
@@ -50,7 +90,7 @@ export interface Moment {
   slot: MomentSlot;
   title: string;
   time_hint?: string;
-  location?: { name: string; lat?: number; lng?: number };
+  location?: { name: string; lat?: number; lng?: number; zoom?: number };
   activities: Activity[];
 }
 
@@ -59,6 +99,11 @@ export interface Day {
   date?: string;
   label?: string;
   summary?: string;
+  did_you_know?: string;
+  weather?: Weather;
+  hotel?: Hotel;
+  game?: Game;
+  star_challenge?: StarChallenge;
   moments: Moment[];
 }
 

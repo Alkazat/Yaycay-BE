@@ -39,6 +39,8 @@ export interface ChildProfile {
   name: string;
   age: number;
   interests: string[];
+  /** Medical flags surfaced to adults as safety callouts. */
+  medical?: string[];
 }
 
 /** An audited admin action (actor, action, target, when). */

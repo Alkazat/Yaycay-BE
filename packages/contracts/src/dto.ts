@@ -63,10 +63,12 @@ export interface DemoChildProfile {
   name: string;
   age?: number;
   /** Explorer mode used to pick the variant block. */
-  mode?: 'little' | 'explorer' | 'explorer_plus';
+  mode?: 'little' | 'standard' | 'explorer' | 'explorer_plus';
   interests?: string[];
   /** Dietary flags surfaced to adults as safety notes. */
   dietary?: string[];
+  /** Medical flags surfaced to adults as safety callouts. */
+  medical?: string[];
 }
 
 export interface DemoGenerateDayRequest {

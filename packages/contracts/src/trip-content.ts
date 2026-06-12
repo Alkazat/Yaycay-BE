@@ -15,7 +15,7 @@ export type MomentSlot = 'morning' | 'midday' | 'afternoon' | 'evening' | 'night
 export type ActivityKind = 'kid' | 'shared' | 'adult';
 
 /** Kid explorer modes used to pick a {@link Variants} block at render time. */
-export type ExplorerMode = 'little' | 'explorer' | 'explorer_plus';
+export type ExplorerMode = 'little' | 'standard' | 'explorer' | 'explorer_plus';
 
 export interface TripContentHeader {
   id: string;
@@ -32,6 +32,49 @@ export interface Location {
   name: string;
   lat?: number;
   lng?: number;
+  /** Map zoom level for this location. */
+  zoom?: number;
+}
+
+/** A typed challenge with an optional revealable answer. */
+export type ChallengeType = 'quiz' | 'spot' | 'photo' | 'challenge';
+
+export interface Challenge {
+  type: ChallengeType;
+  prompt: string;
+  answer?: string;
+  options?: string[];
+  stars?: number;
+}
+
+export interface Weather {
+  summary?: string;
+  high?: number;
+  low?: number;
+  icon?: string;
+}
+
+/** Accommodation / move badge for a day. */
+export interface Hotel {
+  name?: string;
+  phase?: 'arrive' | 'stay' | 'depart' | 'move';
+  checkin?: string;
+  checkout?: string;
+  note?: string;
+}
+
+/** Per-day mini-game; `config` is game-specific. */
+export interface Game {
+  type: 'tap_collect' | 'colouring' | 'spot_it';
+  title?: string;
+  stars?: number;
+  config?: Record<string, unknown>;
+}
+
+export interface StarChallenge {
+  title: string;
+  prompt?: string;
+  stars?: number;
 }
 
 export interface Quiz {
@@ -72,6 +115,9 @@ export interface Activity {
   safety?: Safety;
   /** References to media rows; resolved to signed URLs at read time. */
   media_ref?: string[];
+  /** Did-you-know / fact bubbles for this activity. */
+  facts?: string[];
+  challenge?: Challenge;
 }
 
 export interface Moment {
@@ -89,6 +135,11 @@ export interface Day {
   date?: string;
   label?: string;
   summary?: string;
+  did_you_know?: string;
+  weather?: Weather;
+  hotel?: Hotel;
+  game?: Game;
+  star_challenge?: StarChallenge;
   moments: Moment[];
 }
 
