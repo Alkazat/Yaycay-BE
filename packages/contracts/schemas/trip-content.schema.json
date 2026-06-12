@@ -55,10 +55,59 @@
         "date": { "$ref": "#/$defs/isoDate" },
         "label": { "type": "string", "maxLength": 120 },
         "summary": { "type": "string", "maxLength": 2000 },
+        "did_you_know": { "type": "string", "maxLength": 1000 },
+        "weather": { "$ref": "#/$defs/weather" },
+        "hotel": { "$ref": "#/$defs/hotel" },
+        "game": { "$ref": "#/$defs/game" },
+        "star_challenge": { "$ref": "#/$defs/starChallenge" },
         "moments": {
           "type": "array",
           "items": { "$ref": "#/$defs/moment" }
         }
+      }
+    },
+    "weather": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "summary": { "type": "string", "maxLength": 200 },
+        "high": { "type": "number" },
+        "low": { "type": "number" },
+        "icon": { "type": "string", "maxLength": 64 }
+      }
+    },
+    "hotel": {
+      "type": "object",
+      "description": "Accommodation / move badge for the day.",
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string", "maxLength": 200 },
+        "phase": { "type": "string", "enum": ["arrive", "stay", "depart", "move"] },
+        "checkin": { "type": "string", "maxLength": 64 },
+        "checkout": { "type": "string", "maxLength": 64 },
+        "note": { "type": "string", "maxLength": 1000 }
+      }
+    },
+    "game": {
+      "type": "object",
+      "description": "Per-day mini-game; config is game-specific.",
+      "additionalProperties": false,
+      "required": ["type"],
+      "properties": {
+        "type": { "type": "string", "enum": ["tap_collect", "colouring", "spot_it"] },
+        "title": { "type": "string", "maxLength": 200 },
+        "stars": { "type": "integer", "minimum": 0, "maximum": 100 },
+        "config": { "type": "object" }
+      }
+    },
+    "starChallenge": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["title"],
+      "properties": {
+        "title": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "prompt": { "type": "string", "maxLength": 1000 },
+        "stars": { "type": "integer", "minimum": 0, "maximum": 100 }
       }
     },
     "moment": {
@@ -91,7 +140,8 @@
       "properties": {
         "name": { "type": "string", "minLength": 1, "maxLength": 200 },
         "lat": { "type": "number", "minimum": -90, "maximum": 90 },
-        "lng": { "type": "number", "minimum": -180, "maximum": 180 }
+        "lng": { "type": "number", "minimum": -180, "maximum": 180 },
+        "zoom": { "type": "number", "minimum": 0, "maximum": 22 }
       }
     },
     "activity": {
@@ -114,7 +164,13 @@
           "type": "array",
           "items": { "type": "string" },
           "description": "References to media rows (ids); resolved to signed URLs at read time."
-        }
+        },
+        "facts": {
+          "type": "array",
+          "items": { "type": "string", "maxLength": 1000 },
+          "description": "Did-you-know / fact bubbles for this activity."
+        },
+        "challenge": { "$ref": "#/$defs/challenge" }
       }
     },
     "variants": {
@@ -123,8 +179,26 @@
       "additionalProperties": false,
       "properties": {
         "little": { "$ref": "#/$defs/variantBlock" },
+        "standard": { "$ref": "#/$defs/variantBlock" },
         "explorer": { "$ref": "#/$defs/variantBlock" },
         "explorer_plus": { "$ref": "#/$defs/variantBlock" }
+      }
+    },
+    "challenge": {
+      "type": "object",
+      "description": "A typed challenge with an optional revealable answer.",
+      "additionalProperties": false,
+      "required": ["type", "prompt"],
+      "properties": {
+        "type": { "type": "string", "enum": ["quiz", "spot", "photo", "challenge"] },
+        "prompt": { "type": "string", "minLength": 1, "maxLength": 500 },
+        "answer": { "type": "string", "maxLength": 500 },
+        "options": {
+          "type": "array",
+          "items": { "type": "string", "maxLength": 200 },
+          "maxItems": 6
+        },
+        "stars": { "type": "integer", "minimum": 0, "maximum": 100 }
       }
     },
     "variantBlock": {
