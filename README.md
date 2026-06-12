@@ -9,7 +9,7 @@ Website depend on what we publish, so the contract is the primary deliverable
 alongside the code. See [`docs/00-MODEL-CONTEXT.md`](docs/00-MODEL-CONTEXT.md)
 (read first) and [`docs/02-BACKEND-HANDOFF.md`](docs/02-BACKEND-HANDOFF.md).
 
-## Status: Phase 0 + admin v0.2 + use-our-AI v0.3 + commerce v0.5
+## Status: Phase 0 + admin v0.2 + use-our-AI v0.3 + commerce v0.5 + journal/MCP v0.6
 
 The free-demo hook, lead capture, the core data model with RLS, contract `v0.1`,
 the admin-scoped contract `v0.2` (plus its schema) for the Admin thread, the
@@ -36,8 +36,10 @@ and returns problem+json. `checkout` creates a Stripe Checkout Session for a
 catalogue price; `stripe-webhook` verifies the Stripe signature and, on a
 completed checkout, records the purchase and flips the trip tier (idempotent on
 the session id). Entitlement is only ever set by the signed webhook, never by the
-client. Still to come: journal/media, BYO-AI MCP, and the rest of Phase 2
-(retention/disposal). Full MFA enrolment is Phase 1 too.
+client. **v0.6** adds the journal + signed media upload, the BYO-AI MCP endpoint
+(connector tokens + JSON-RPC tools over the trip, no model cost to us), and
+`GET /admin/me`. Still to come: the rest of Phase 2 (retention/disposal). Full
+MFA enrolment is Phase 1 too.
 
 ## Layout
 
@@ -115,8 +117,10 @@ GitHub Packages requires for publishing.
 - **Ad-hoc:** Actions -> **Deploy** -> Run workflow -> pick `staging` or `production`.
 - Deploy secrets: `SUPABASE_ACCESS_TOKEN`, `SUPABASE_PROJECT_REF` / `SUPABASE_DB_PASSWORD`
   (prod), `STAGING_PROJECT_REF` / `STAGING_DB_PASSWORD` (staging); optional
-  `ANTHROPIC_API_KEY`, `BREVO_API_KEY`. The platform injects `SUPABASE_URL` /
-  `SUPABASE_ANON_KEY` / `SUPABASE_SERVICE_ROLE_KEY` into functions automatically.
+  `ANTHROPIC_API_KEY`, `BREVO_API_KEY`, and per-environment Stripe keys
+  (`STRIPE_*` for prod, `STAGING_STRIPE_*` for staging). The platform injects
+  `SUPABASE_URL` / `SUPABASE_ANON_KEY` / `SUPABASE_SERVICE_ROLE_KEY` into functions
+  automatically.
 
 ## Conventions
 

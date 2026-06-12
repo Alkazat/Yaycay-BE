@@ -17,7 +17,7 @@ GitHub Packages registry for the `@alkazat` scope:
 @alkazat:registry=https://npm.pkg.github.com
 ```
 
-Current version: **`0.4.0`**. Pin `@alkazat/contracts@^0.4.0` (the admin surface
+Current version: **`0.6.0`**. Pin `@alkazat/contracts@^0.6.0` (the admin surface
 that earlier handoffs called `^0.2.0` ships within this range).
 
 GitHub Packages requires auth to install **even public packages**. Each consumer
@@ -30,21 +30,27 @@ GitHub Packages requires auth to install **even public packages**. Each consumer
 
 ## Live deployment (free tier)
 
-Deployed to the Supabase project `nzmjkbjtcjthjwdscjrj` (free tier — no custom
-domain). There is **no `api.yaycay.ai` gateway**, so the OpenAPI `servers` block
-is aspirational; consumers use the function base URL below via an env var (do not
-hard-code it — a future domain switch should be one line).
+Deployed to Supabase Edge Functions (free tier, no custom domain). There is **no
+`api.yaycay.ai` gateway**, so the OpenAPI `servers` block is aspirational;
+consumers use the function base URL below via an env var (do not hard-code it, so
+a future domain switch is one line).
+
+Two environments, mapped to branches and repo secrets:
+
+- **Production** deploys from `main` to the project in `SUPABASE_PROJECT_REF`.
+- **Staging** deploys from `develop` to the project in `STAGING_PROJECT_REF`.
+
+The base URL per environment is `https://<project-ref>.supabase.co/functions/v1`
+(get the ref + anon key from that project's Supabase dashboard, Settings -> API):
 
 ```
-NEXT_PUBLIC_API_BASE=https://nzmjkbjtcjthjwdscjrj.supabase.co/functions/v1
-NEXT_PUBLIC_SUPABASE_URL=https://nzmjkbjtcjthjwdscjrj.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=<anon public key — Supabase → Settings → API>
+# production (swap the ref for STAGING_PROJECT_REF to target staging)
+NEXT_PUBLIC_API_BASE=https://<SUPABASE_PROJECT_REF>.supabase.co/functions/v1
+NEXT_PUBLIC_SUPABASE_URL=https://<SUPABASE_PROJECT_REF>.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=<that project's anon public key>
 ```
 
-There are two environments. Production deploys from `main` (the project above);
-a separate **staging** project deploys from `develop` — point staging builds at
-`https://<STAGING_PROJECT_REF>.supabase.co/functions/v1`. Same path rules apply
-to both.
+The same path rules below apply to both environments.
 
 Without a gateway, endpoint paths are the **function names**. Three contract
 paths map to hyphenated functions; the rest match:
@@ -109,6 +115,10 @@ server-resolved (not a claim). Audit sink is `public.admin_audit_log`
 | `PATCH /trips/:id/content` | `TripContent` (schema-validated) | ✅ served |
 | `POST /trips/:id/plan/chat` | SSE `PlanChatEvent` stream (tier=ours) | ✅ served (v0.3) |
 | `POST /trips/:id/ingest` | `IngestResponse` (paid: byo/ours) | ✅ served (v0.3) |
+| `GET/POST /trips/:id/journal` | `JournalEntry` (POST paid) | ✅ served (v0.6) |
+| `POST /media/sign-upload` | `SignUploadResponse` (signed Storage URL, paid) | ✅ served (v0.6) |
+| `POST /connectors/byo-ai` · `GET /connectors` · `POST /mcp` | BYO-AI MCP (tier=byo) | ✅ served (v0.6) |
+| `GET /admin/me` | `AdminSession` (role + MFA) | ✅ served (v0.6) |
 | `POST /checkout/session` | `CheckoutSessionResponse` (Stripe Checkout URL) | ✅ served (v0.5) |
 | `POST /webhooks/stripe` | `{ received }` (signature-verified; flips trip tier) | ✅ served (v0.5) |
 
@@ -134,9 +144,6 @@ These are specced by consumers but not built. They will be added to the contract
 | Child profiles | `GET /profiles -> { profiles: ChildProfile[] }` | profiles/progress |
 | Per-profile progress | `GET/PATCH /trips/:id/progress` | profiles/progress |
 | Account summary | `GET /account -> AccountSummary` | account |
-| Journal | `GET/POST /trips/:id/journal` (`JournalEntry`) | journal/media |
-| Media upload | `POST /media/sign-upload` (signed-URL flow) | journal/media |
-| BYO-AI connector | `POST /connectors/byo-ai`, `GET /connectors`, `POST /mcp` | BYO-AI MCP |
 
 ### Commerce setup (Stripe)
 
@@ -149,6 +156,10 @@ insert into public.products (price_id, name, amount_usd, tier) values
   ('price_xxx_byo',  'Bring Your Own AI', 29, 'byo');
 ```
 
-Function secrets on each environment: `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`
-(and optional `CHECKOUT_SUCCESS_URL` / `CHECKOUT_CANCEL_URL` defaults). Point the
-Stripe webhook endpoint at `…/functions/v1/stripe-webhook`.
+Stripe keys are per environment (test on staging, live on prod). Add repo
+secrets: production uses `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET`; staging
+uses `STAGING_STRIPE_SECRET_KEY` / `STAGING_STRIPE_WEBHOOK_SECRET`. The deploy
+pushes whichever matches the target as `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET`
+to the project (plus optional `CHECKOUT_SUCCESS_URL` / `CHECKOUT_CANCEL_URL`).
+Point each environment's Stripe webhook at that project's
+`…/functions/v1/stripe-webhook`.

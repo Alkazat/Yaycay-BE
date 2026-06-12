@@ -206,3 +206,77 @@ export interface CheckoutSessionResponse {
   /** The Stripe Checkout Session id. */
   session_id: string;
 }
+
+// ===== Journal + media (v0.6) ==============================================
+
+export interface JournalEntry {
+  id: string;
+  trip_id: string;
+  /** Optional child profile this entry is tagged to. */
+  profile_id?: string | null;
+  body: string;
+  /** media_ref ids from `/media/sign-upload`, resolved to signed URLs on read. */
+  media_ref: string[];
+  created_at: string;
+}
+
+/** Request body for `POST /trips/{tripId}/journal` (paid: byo or ours). */
+export interface JournalEntryInput {
+  body?: string;
+  profile_id?: string;
+  media_ref?: string[];
+}
+
+export interface JournalListResponse {
+  entries: JournalEntry[];
+}
+
+/** Request body for `POST /media/sign-upload` (paid: byo or ours). */
+export interface SignUploadRequest {
+  /** The trip the media belongs to (must be a paid trip the caller owns). */
+  trip_id: string;
+  content_type?: string;
+}
+
+export interface SignUploadResponse {
+  /** Stable reference stored in journal entries / trip content. */
+  media_ref: string;
+  /** Storage object path (owner-prefixed). */
+  path: string;
+  /** Short-lived signed URL to PUT the file to. */
+  upload_url: string;
+  /** Upload token for the signed URL. */
+  token: string;
+}
+
+// ===== BYO-AI MCP (v0.6) ===================================================
+
+export type ConnectorStatus = 'active' | 'revoked';
+
+export interface Connector {
+  id: string;
+  trip_id: string;
+  label?: string | null;
+  scopes: string[];
+  status: ConnectorStatus;
+  last_used_at?: string | null;
+  created_at: string;
+}
+
+export interface ConnectorsListResponse {
+  connectors: Connector[];
+}
+
+/** Request body for `POST /connectors/byo-ai` (tier=byo). */
+export interface ByoConnectorRequest {
+  trip_id: string;
+  label?: string;
+}
+
+export interface ByoConnectorResponse {
+  connector_id: string;
+  /** The scoped MCP token to add to the parent's own AI as a connector. */
+  token: string;
+  /** The MCP endpoint URL the token authenticates against. */
+  mcp_url: string;
+}
