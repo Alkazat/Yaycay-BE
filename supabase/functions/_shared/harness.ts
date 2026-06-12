@@ -49,8 +49,11 @@ export async function generateDemoDay(input: DemoDayInput): Promise<DemoDayResul
       grownups_teaser: grownupsTeaser(input),
       generated_by: 'ai',
     };
-  } catch (_err) {
+  } catch (err) {
     // Never fail the demo on a model hiccup; degrade to the deterministic day.
+    // Log the reason so a misconfigured key/model surfaces in the function logs
+    // instead of silently serving the fallback.
+    console.error('generateDemoDay: model call failed, using fallback:', err);
     return { ...buildFallbackDay(input), generated_by: 'fallback' };
   }
 }
@@ -115,7 +118,7 @@ async function generateWithClaude(input: DemoDayInput, apiKey: string): Promise<
   });
 
   if (!res.ok) {
-    throw new Error(`Anthropic request failed: ${res.status}`);
+    throw new Error(`Anthropic request failed: ${res.status} ${await res.text()}`);
   }
 
   const data = await res.json();
@@ -359,7 +362,8 @@ export async function* planChatDeltas(input: PlanChatInput): AsyncGenerator<stri
   });
 
   if (!res.ok || !res.body) {
-    throw new Error(`Anthropic chat request failed: ${res.status}`);
+    const detail = res.body ? await res.text() : '(no body)';
+    throw new Error(`Anthropic chat request failed: ${res.status} ${detail}`);
   }
 
   yield* parseAnthropicTextStream(res.body);
@@ -501,7 +505,8 @@ export async function ingest(input: IngestInput): Promise<IngestResult> {
         messages: [{ role: 'user', content }],
       }),
     });
-    if (!res.ok) throw new Error(`Anthropic ingest request failed: ${res.status}`);
+    if (!res.ok)
+      throw new Error(`Anthropic ingest request failed: ${res.status} ${await res.text()}`);
 
     const data = await res.json();
     const text: string =
@@ -511,8 +516,10 @@ export async function ingest(input: IngestInput): Promise<IngestResult> {
       throw new Error('Model returned no ops');
     }
     return { patch: parsed, generated_by: 'ai', model: DEFAULT_MODEL };
-  } catch (_err) {
+  } catch (err) {
     // Never lose the parent's item on a model hiccup: record it deterministically.
+    // Log the reason so a misconfigured key/model is visible in the logs.
+    console.error('ingestToPatch: model call failed, using fallback:', err);
     return { patch: fallbackIngestPatch(input), generated_by: 'fallback', model: 'fallback' };
   }
 }
