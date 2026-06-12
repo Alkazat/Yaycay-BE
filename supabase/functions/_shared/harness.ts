@@ -36,14 +36,44 @@ export interface DemoDayResult {
 const DEFAULT_MODEL = optionalEnv('DEMO_MODEL') ?? 'claude-sonnet-4-6';
 const ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages';
 
+// ----- AI observability ------------------------------------------------------
+// Every AI surface (demo, chat, ingest) logs the same three things so a call is
+// traceable in the Supabase Edge function logs: that it started (which model),
+// how it ended (ai vs fallback), and - on failure - why it fell back. The
+// failure path carries the thrown error, which now includes the Anthropic
+// response body (invalid key, unknown model, no credit), so a misconfigured
+// project is diagnosable from the logs instead of looking like "no key".
+type AiSurface = 'demo' | 'chat' | 'ingest';
+
+function logAiStart(surface: AiSurface, model: string): void {
+  console.log(`[ai:${surface}] calling model=${model}`);
+}
+
+function logAiResult(surface: AiSurface, generatedBy: 'ai' | 'fallback'): void {
+  console.log(`[ai:${surface}] done generated_by=${generatedBy}`);
+}
+
+/** No model call was attempted (missing key or nothing to send); served fallback. */
+function logAiSkipped(surface: AiSurface, reason: string): void {
+  console.log(`[ai:${surface}] no model call (${reason}); serving fallback`);
+}
+
+/** A model call threw; the surface degraded to its deterministic fallback. */
+export function logAiError(surface: AiSurface, err: unknown): void {
+  console.error(`[ai:${surface}] model call failed, using fallback:`, err);
+}
+
 export async function generateDemoDay(input: DemoDayInput): Promise<DemoDayResult> {
   const apiKey = optionalEnv('ANTHROPIC_API_KEY');
   if (!apiKey) {
+    logAiSkipped('demo', 'no ANTHROPIC_API_KEY');
     return { ...buildFallbackDay(input), generated_by: 'fallback' };
   }
 
+  logAiStart('demo', DEFAULT_MODEL);
   try {
     const day = await generateWithClaude(input, apiKey);
+    logAiResult('demo', 'ai');
     return {
       day,
       grownups_teaser: grownupsTeaser(input),
@@ -51,9 +81,7 @@ export async function generateDemoDay(input: DemoDayInput): Promise<DemoDayResul
     };
   } catch (err) {
     // Never fail the demo on a model hiccup; degrade to the deterministic day.
-    // Log the reason so a misconfigured key/model surfaces in the function logs
-    // instead of silently serving the fallback.
-    console.error('generateDemoDay: model call failed, using fallback:', err);
+    logAiError('demo', err);
     return { ...buildFallbackDay(input), generated_by: 'fallback' };
   }
 }
@@ -341,10 +369,12 @@ function chatContext(input: PlanChatInput): string {
 export async function* planChatDeltas(input: PlanChatInput): AsyncGenerator<string> {
   const apiKey = optionalEnv('ANTHROPIC_API_KEY');
   if (!apiKey) {
+    logAiSkipped('chat', 'no ANTHROPIC_API_KEY');
     yield fallbackChatReply(input);
     return;
   }
 
+  logAiStart('chat', DEFAULT_MODEL);
   const res = await fetch(ANTHROPIC_URL, {
     method: 'POST',
     headers: {
@@ -367,6 +397,7 @@ export async function* planChatDeltas(input: PlanChatInput): AsyncGenerator<stri
   }
 
   yield* parseAnthropicTextStream(res.body);
+  logAiResult('chat', 'ai');
 }
 
 // Parse Anthropic's SSE stream, yielding only the text deltas.
@@ -472,9 +503,11 @@ function ingestContext(input: IngestInput): string {
 export async function ingest(input: IngestInput): Promise<IngestResult> {
   const apiKey = optionalEnv('ANTHROPIC_API_KEY');
   if (!apiKey || (!input.text && !input.image)) {
+    logAiSkipped('ingest', !apiKey ? 'no ANTHROPIC_API_KEY' : 'no text or image');
     return { patch: fallbackIngestPatch(input), generated_by: 'fallback', model: 'fallback' };
   }
 
+  logAiStart('ingest', DEFAULT_MODEL);
   try {
     const content: unknown[] = [
       {
@@ -515,11 +548,11 @@ export async function ingest(input: IngestInput): Promise<IngestResult> {
     if (!parsed || !Array.isArray(parsed.ops) || parsed.ops.length === 0) {
       throw new Error('Model returned no ops');
     }
+    logAiResult('ingest', 'ai');
     return { patch: parsed, generated_by: 'ai', model: DEFAULT_MODEL };
   } catch (err) {
     // Never lose the parent's item on a model hiccup: record it deterministically.
-    // Log the reason so a misconfigured key/model is visible in the logs.
-    console.error('ingestToPatch: model call failed, using fallback:', err);
+    logAiError('ingest', err);
     return { patch: fallbackIngestPatch(input), generated_by: 'fallback', model: 'fallback' };
   }
 }

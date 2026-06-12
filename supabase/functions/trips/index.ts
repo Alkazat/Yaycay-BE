@@ -17,6 +17,7 @@ import {
   chatGeneratedBy,
   chatModel,
   ingest as runIngest,
+  logAiError,
   type ChatMessage,
   type IngestImage,
   planChatDeltas,
@@ -301,7 +302,7 @@ async function handlePlanChat(
         controller.enqueue(new TextEncoder().encode('data: [DONE]\n\n'));
         await finishJob(svc, jobId, 'succeeded');
       } catch (err) {
-        console.error('plan/chat: model stream failed:', err);
+        logAiError('chat', err);
         controller.enqueue(sse({ error: 'chat_failed' }));
         await finishJob(svc, jobId, 'failed', err instanceof Error ? err.message : String(err));
       } finally {
