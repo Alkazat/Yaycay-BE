@@ -46,7 +46,7 @@ export async function listJobs(req: Request, _ctx: AdminContext): Promise<Respon
 
   const { data, error } = await q.range(params.offset, rangeEnd(params));
   if (error) throw badRequest(error.message);
-  return ok(page((data as JobRow[]).map(toDto), params));
+  return ok(page(((data ?? []) as JobRow[]).map(toDto), params));
 }
 
 export async function getJob(_req: Request, _ctx: AdminContext, id: string): Promise<Response> {

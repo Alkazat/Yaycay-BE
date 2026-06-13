@@ -123,6 +123,9 @@ Deno.serve(async (req) => {
   } catch (err) {
     if (err instanceof ProblemError) return problem(err);
     console.error('admin handler error', err);
-    return problem(new ProblemError(500, 'Internal Server Error', 'Unexpected error.'));
+    // Admin-only surface: surface the actual message so a 500 is diagnosable
+    // from the response body, not just the logs.
+    const detail = err instanceof Error ? err.message : 'Unexpected error.';
+    return problem(new ProblemError(500, 'Internal Server Error', detail));
   }
 });
