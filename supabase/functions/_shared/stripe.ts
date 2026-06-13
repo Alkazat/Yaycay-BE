@@ -10,6 +10,16 @@ export function stripeConfigured(): boolean {
   return !!optionalEnv('STRIPE_SECRET_KEY');
 }
 
+/**
+ * Whether the configured Stripe key is a live key (vs test). Used to scope the
+ * product catalogue to the deployment's mode: prod runs a live key, staging a
+ * test key, and the seeded table holds both sets of prices.
+ */
+export function stripeLivemode(): boolean {
+  const key = optionalEnv('STRIPE_SECRET_KEY') ?? '';
+  return key.startsWith('sk_live') || key.startsWith('rk_live');
+}
+
 export interface CheckoutSessionParams {
   priceId: string;
   successUrl: string;

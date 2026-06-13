@@ -12,6 +12,14 @@ const TIERS = ['byo', 'ours'];
 const KINDS = ['tier', 'keep'];
 const PRODUCT_COLUMNS = 'price_id, name, amount_usd, tier, kind, extends_months, active';
 
+// The deployment's Stripe mode (live on prod, test on staging). The products
+// table holds both sets of prices (the seed loaded both); scope the catalogue to
+// this mode so prod shows only live prices and staging only test prices.
+function stripeLivemode(): boolean {
+  const key = Deno.env.get('STRIPE_SECRET_KEY') ?? '';
+  return key.startsWith('sk_live') || key.startsWith('rk_live');
+}
+
 interface ProductRow {
   price_id: string;
   name: string;
@@ -40,6 +48,7 @@ export async function listProducts(_req: Request, _ctx: AdminContext): Promise<R
   const { data, error } = await serviceClient()
     .from('products')
     .select(PRODUCT_COLUMNS)
+    .eq('livemode', stripeLivemode())
     .order('amount_usd', { ascending: true });
   if (error) throw badRequest(error.message);
   return ok({ items: (data ?? []).map((p) => toProductDto(p as ProductRow)) });
@@ -74,6 +83,7 @@ export async function createProduct(req: Request, ctx: AdminContext): Promise<Re
       kind,
       extends_months: extendsMonths,
       active,
+      livemode: stripeLivemode(),
     })
     .select(PRODUCT_COLUMNS)
     .single();
