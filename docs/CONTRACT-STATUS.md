@@ -17,7 +17,7 @@ GitHub Packages registry for the `@alkazat` scope:
 @alkazat:registry=https://npm.pkg.github.com
 ```
 
-Current version: **`0.12.0`**. Pin `@alkazat/contracts@^0.12.0` (the admin surface
+Current version: **`0.13.0`**. Pin `@alkazat/contracts@^0.13.0` (the admin surface
 that earlier handoffs called `^0.2.0` ships within this range).
 
 GitHub Packages requires auth to install **even public packages**. Each consumer
