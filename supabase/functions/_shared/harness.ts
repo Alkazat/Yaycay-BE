@@ -324,7 +324,9 @@ function normaliseDay(raw: unknown, input: DemoDayInput): Day {
     label: typeof r.label === 'string' ? r.label : `A day in ${input.destination}`,
     summary: typeof r.summary === 'string' ? r.summary : undefined,
     did_you_know: typeof r.did_you_know === 'string' ? r.did_you_know : undefined,
-    star_challenge: isRecord(r.star_challenge) ? (r.star_challenge as StarChallenge) : undefined,
+    star_challenge: isRecord(r.star_challenge)
+      ? (r.star_challenge as unknown as StarChallenge)
+      : undefined,
     moments: moments.map((m, mi) => {
       const mm = (m ?? {}) as Record<string, unknown>;
       const acts = Array.isArray(mm.activities) ? mm.activities : [];
@@ -346,7 +348,7 @@ function normaliseDay(raw: unknown, input: DemoDayInput): Day {
             title: typeof aa.title === 'string' ? aa.title : 'Activity',
             body: typeof aa.body === 'string' ? aa.body : undefined,
             facts: stringArray(aa.facts),
-            challenge: isRecord(aa.challenge) ? (aa.challenge as Challenge) : undefined,
+            challenge: isRecord(aa.challenge) ? (aa.challenge as unknown as Challenge) : undefined,
             variants: isRecord(aa.variants) ? (aa.variants as Variants) : undefined,
             safety: isRecord(aa.safety) ? (aa.safety as Safety) : undefined,
           };
