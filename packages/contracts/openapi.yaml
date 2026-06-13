@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Yaycay API
-  version: 0.11.0
+  version: 0.12.0
   description: >
     Yaycay back-end HTTP API. The v0.1 surface (Phase 0) is the free-demo
     generator, signup/lead capture, the 2FA verify step, and trip + trip-content
@@ -1474,80 +1474,33 @@ paths:
     parameters:
       - $ref: '#/components/parameters/TripId'
     get:
-      operationId: listPacking
+      operationId: getPacking
       tags: [trips]
-      summary: The trip's packing list.
+      summary: The trip's packing document (lists -> sections -> items).
+      description: >
+        Returns the whole `{ lists }`. BE seeds a Family list plus one per child
+        profile (each with default sections) on first touch.
       security:
         - bearerAuth: []
       responses:
         '200':
-          description: Packing items.
+          description: The packing collection.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PackingListResponse'
+                $ref: '#/components/schemas/PackingResponse'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/NotFound'
-    post:
-      operationId: createPackingItem
-      tags: [trips]
-      summary: Add a packing item.
-      security:
-        - bearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/PackingItemInput'
-      responses:
-        '201':
-          description: The created item.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/PackingItem'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '422':
-          $ref: '#/components/responses/ValidationError'
-
-  /trips/{tripId}/packing/reset:
-    parameters:
-      - $ref: '#/components/parameters/TripId'
-    post:
-      operationId: resetPacking
-      tags: [trips]
-      summary: Unpack all items (clear every packed flag).
-      security:
-        - bearerAuth: []
-      responses:
-        '200':
-          description: The packing list after reset.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/PackingListResponse'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
-          $ref: '#/components/responses/NotFound'
-
-  /trips/{tripId}/packing/{itemId}:
-    parameters:
-      - $ref: '#/components/parameters/TripId'
-      - name: itemId
-        in: path
-        required: true
-        schema: { type: string }
     patch:
-      operationId: updatePackingItem
+      operationId: patchPacking
       tags: [trips]
-      summary: Update a packing item (tick, rename, recategorise, reorder).
+      summary: Mutate packing (tick | add | delete | reset); returns the whole collection.
+      description: >
+        One collection endpoint. The body is a discriminated union on `action`;
+        every mutation returns the full recomputed `{ lists }` so the client never
+        merges or refetches. `reset` is trip-wide (clears every tick).
       security:
         - bearerAuth: []
       requestBody:
@@ -1555,41 +1508,20 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/PackingItemUpdate'
+              $ref: '#/components/schemas/PackingPatchRequest'
       responses:
         '200':
-          description: The updated item.
+          description: The packing collection after the mutation.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PackingItem'
+                $ref: '#/components/schemas/PackingResponse'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/NotFound'
         '422':
           $ref: '#/components/responses/ValidationError'
-    delete:
-      operationId: deletePackingItem
-      tags: [trips]
-      summary: Remove a packing item.
-      security:
-        - bearerAuth: []
-      responses:
-        '200':
-          description: Deleted.
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: false
-                required: [deleted]
-                properties:
-                  deleted: { type: boolean }
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
-          $ref: '#/components/responses/NotFound'
 
   /trips/{tripId}/grownups/checklist:
     parameters:
@@ -1922,46 +1854,78 @@ components:
     PackingItem:
       type: object
       additionalProperties: false
-      required: [id, label, packed, created_at, updated_at]
+      required: [id, label, checked]
       properties:
         id: { type: string }
-        profile_id: { type: [string, 'null'] }
         label: { type: string }
-        category: { type: [string, 'null'] }
-        packed: { type: boolean }
-        position: { type: [integer, 'null'] }
-        created_at: { type: string, format: date-time }
-        updated_at: { type: string, format: date-time }
+        qty: { type: integer, minimum: 1 }
+        checked: { type: boolean }
 
-    PackingListResponse:
+    PackingSection:
       type: object
       additionalProperties: false
-      required: [items]
+      required: [id, label, items]
       properties:
+        id: { type: string }
+        label: { type: string }
         items:
           type: array
           items: { $ref: '#/components/schemas/PackingItem' }
 
-    PackingItemInput:
+    PackingList:
       type: object
       additionalProperties: false
-      required: [label]
+      required: [id, label, sections]
       properties:
+        id:
+          type: string
+          description: A child profile id, or the literal "family".
         label: { type: string }
-        profile_id: { type: [string, 'null'] }
-        category: { type: [string, 'null'] }
-        packed: { type: boolean }
-        position: { type: [integer, 'null'] }
+        sections:
+          type: array
+          items: { $ref: '#/components/schemas/PackingSection' }
 
-    PackingItemUpdate:
+    PackingResponse:
       type: object
       additionalProperties: false
+      required: [lists]
       properties:
-        label: { type: string }
-        profile_id: { type: [string, 'null'] }
-        category: { type: [string, 'null'] }
-        packed: { type: boolean }
-        position: { type: [integer, 'null'] }
+        lists:
+          type: array
+          items: { $ref: '#/components/schemas/PackingList' }
+
+    PackingPatchRequest:
+      description: Discriminated union on `action`; response is always PackingResponse.
+      oneOf:
+        - type: object
+          additionalProperties: false
+          required: [action, list_id, item_id, checked]
+          properties:
+            action: { type: string, enum: [tick] }
+            list_id: { type: string }
+            item_id: { type: string }
+            checked: { type: boolean }
+        - type: object
+          additionalProperties: false
+          required: [action, list_id, section_id, label]
+          properties:
+            action: { type: string, enum: [add] }
+            list_id: { type: string }
+            section_id: { type: string }
+            label: { type: string }
+            qty: { type: integer, minimum: 1 }
+        - type: object
+          additionalProperties: false
+          required: [action, list_id, item_id]
+          properties:
+            action: { type: string, enum: [delete] }
+            list_id: { type: string }
+            item_id: { type: string }
+        - type: object
+          additionalProperties: false
+          required: [action]
+          properties:
+            action: { type: string, enum: [reset] }
 
     ChecklistItem:
       type: object
