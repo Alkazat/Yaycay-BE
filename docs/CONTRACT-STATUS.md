@@ -17,7 +17,7 @@ GitHub Packages registry for the `@alkazat` scope:
 @alkazat:registry=https://npm.pkg.github.com
 ```
 
-Current version: **`0.10.0`**. Pin `@alkazat/contracts@^0.10.0` (the admin surface
+Current version: **`0.11.0`**. Pin `@alkazat/contracts@^0.11.0` (the admin surface
 that earlier handoffs called `^0.2.0` ships within this range).
 
 GitHub Packages requires auth to install **even public packages**. Each consumer
@@ -120,6 +120,9 @@ server-resolved (not a claim). Audit sink is `public.admin_audit_log`
 | `POST /connectors/byo-ai` · `GET /connectors` · `POST /mcp` | BYO-AI MCP (tier=byo) | ✅ served (v0.6) |
 | `GET /profiles` · `POST /profiles` · `PATCH/DELETE /profiles/:id` | `ChildProfile` (CRUD) | ✅ served (v0.9) |
 | `GET /trips/:id/progress` · `PATCH /trips/:id/progress` | `TripProgress` (per-profile done + active mode) | ✅ served (v0.9) |
+| `GET /trips/:id/stars` · `POST /trips/:id/stars/claim` | `StarsResponse` · `StarClaimResponse` (idempotent per child/day/source) | ✅ served (v0.11) |
+| `GET/POST /trips/:id/packing` · `PATCH/DELETE /…/:itemId` · `POST /…/reset` | `PackingItem` (tick + CRUD) | ✅ served (v0.11) |
+| `GET/PATCH /trips/:id/grownups/checklist` | `ChecklistResponse` (persisted ticks) | ✅ served (v0.11) |
 | `GET /admin/me` | `AdminSession` (role + MFA) | ✅ served (v0.6) |
 | `GET /admin/products` | `{ items: ProductSummary[] }` (all, incl. inactive) | ✅ served (v0.8) |
 | `POST /admin/products` | `ProductSummary` (add a catalogue product) | ✅ served (v0.8) |

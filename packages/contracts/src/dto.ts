@@ -351,3 +351,102 @@ export interface ProgressUpdateRequest {
   /** Incremental: remove these item ids from the done set. */
   mark_undone?: string[];
 }
+
+// ===== Rewards + packing + grown-ups checklist (v0.11) =====================
+
+/** One append-only star award. Claims are idempotent per child / day / source. */
+export interface StarLedgerEntry {
+  id: string;
+  profile_id: string;
+  /** What earned the stars, e.g. `challenge:<id>`, `star_challenge`, `game:<id>`. */
+  source: string;
+  /** Per-day scoping (`''` when not day-specific). */
+  day: string;
+  stars: number;
+  created_at: string;
+}
+
+/** A child's running star total. */
+export interface StarBalance {
+  profile_id: string;
+  stars: number;
+}
+
+/** Response for `GET /trips/{tripId}/stars`. */
+export interface StarsResponse {
+  balances: StarBalance[];
+  entries: StarLedgerEntry[];
+}
+
+/** Request body for `POST /trips/{tripId}/stars/claim`. */
+export interface StarClaimRequest {
+  profile_id: string;
+  source: string;
+  /** Per-day scoping; omit for a non-day achievement. */
+  day?: string;
+  /** Stars to award (1-10); defaults to 1. */
+  stars?: number;
+}
+
+export interface StarClaimResponse {
+  /** False when this (child, day, source) was already claimed (idempotent no-op). */
+  claimed: boolean;
+  entry: StarLedgerEntry;
+  /** The child's new total. */
+  balance: number;
+}
+
+export interface PackingItem {
+  id: string;
+  /** The child this item belongs to, or null when shared. */
+  profile_id?: string | null;
+  label: string;
+  category?: string | null;
+  packed: boolean;
+  position?: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PackingListResponse {
+  items: PackingItem[];
+}
+
+/** Request body for `POST /trips/{tripId}/packing`. */
+export interface PackingItemInput {
+  label: string;
+  profile_id?: string | null;
+  category?: string | null;
+  packed?: boolean;
+  position?: number | null;
+}
+
+/** Request body for `PATCH /trips/{tripId}/packing/{itemId}` (all optional). */
+export interface PackingItemUpdate {
+  label?: string;
+  profile_id?: string | null;
+  category?: string | null;
+  packed?: boolean;
+  position?: number | null;
+}
+
+/** A persisted grown-ups checklist tick, keyed by the FE's item id. */
+export interface ChecklistItem {
+  item: string;
+  checked: boolean;
+  updated_at: string;
+}
+
+export interface ChecklistResponse {
+  items: ChecklistItem[];
+}
+
+/**
+ * Request body for `PATCH /trips/{tripId}/grownups/checklist`. Pass a single
+ * `{ item, checked }` or a batch via `items`.
+ */
+export interface ChecklistUpdateRequest {
+  item?: string;
+  checked?: boolean;
+  items?: Array<{ item: string; checked: boolean }>;
+}
