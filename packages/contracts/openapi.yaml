@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Yaycay API
-  version: 0.10.0
+  version: 0.11.0
   description: >
     Yaycay back-end HTTP API. The v0.1 surface (Phase 0) is the free-demo
     generator, signup/lead capture, the 2FA verify step, and trip + trip-content
@@ -1409,6 +1409,234 @@ paths:
         '422':
           $ref: '#/components/responses/ValidationError'
 
+  /trips/{tripId}/stars:
+    parameters:
+      - $ref: '#/components/parameters/TripId'
+    get:
+      operationId: getStars
+      tags: [trips]
+      summary: Star balances and ledger for a trip.
+      security:
+        - bearerAuth: []
+      parameters:
+        - { name: profile_id, in: query, schema: { type: string } }
+      responses:
+        '200':
+          description: Per-child balances plus the ledger.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StarsResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /trips/{tripId}/stars/claim:
+    parameters:
+      - $ref: '#/components/parameters/TripId'
+    post:
+      operationId: claimStars
+      tags: [trips]
+      summary: Award stars (idempotent per child / day / source).
+      description: >
+        Records a star award. Re-claiming the same (profile_id, day, source) is a
+        no-op that returns the existing entry with `claimed: false`.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StarClaimRequest'
+      responses:
+        '200':
+          description: Already claimed (idempotent no-op).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StarClaimResponse'
+        '201':
+          description: Stars awarded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StarClaimResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /trips/{tripId}/packing:
+    parameters:
+      - $ref: '#/components/parameters/TripId'
+    get:
+      operationId: listPacking
+      tags: [trips]
+      summary: The trip's packing list.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Packing items.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PackingListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    post:
+      operationId: createPackingItem
+      tags: [trips]
+      summary: Add a packing item.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PackingItemInput'
+      responses:
+        '201':
+          description: The created item.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PackingItem'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /trips/{tripId}/packing/reset:
+    parameters:
+      - $ref: '#/components/parameters/TripId'
+    post:
+      operationId: resetPacking
+      tags: [trips]
+      summary: Unpack all items (clear every packed flag).
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: The packing list after reset.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PackingListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /trips/{tripId}/packing/{itemId}:
+    parameters:
+      - $ref: '#/components/parameters/TripId'
+      - name: itemId
+        in: path
+        required: true
+        schema: { type: string }
+    patch:
+      operationId: updatePackingItem
+      tags: [trips]
+      summary: Update a packing item (tick, rename, recategorise, reorder).
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PackingItemUpdate'
+      responses:
+        '200':
+          description: The updated item.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PackingItem'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+    delete:
+      operationId: deletePackingItem
+      tags: [trips]
+      summary: Remove a packing item.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Deleted.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [deleted]
+                properties:
+                  deleted: { type: boolean }
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /trips/{tripId}/grownups/checklist:
+    parameters:
+      - $ref: '#/components/parameters/TripId'
+    get:
+      operationId: getGrownupsChecklist
+      tags: [trips]
+      summary: Persisted grown-ups checklist ticks.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Checklist tick state.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChecklistResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      operationId: updateGrownupsChecklist
+      tags: [trips]
+      summary: Set checklist ticks (single item or a batch).
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChecklistUpdateRequest'
+      responses:
+        '200':
+          description: The checklist after the update.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChecklistResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
 components:
   securitySchemes:
     bearerAuth:
@@ -1630,6 +1858,145 @@ components:
           type: array
           items: { type: string }
           description: 'Incremental: remove these item ids from the done set.'
+
+    StarLedgerEntry:
+      type: object
+      additionalProperties: false
+      required: [id, profile_id, source, day, stars, created_at]
+      properties:
+        id: { type: string }
+        profile_id: { type: string }
+        source:
+          type: string
+          description: 'What earned the stars, e.g. challenge:<id>, star_challenge, game:<id>.'
+        day:
+          type: string
+          description: Per-day scoping ('' when not day-specific).
+        stars: { type: integer }
+        created_at: { type: string, format: date-time }
+
+    StarBalance:
+      type: object
+      additionalProperties: false
+      required: [profile_id, stars]
+      properties:
+        profile_id: { type: string }
+        stars: { type: integer }
+
+    StarsResponse:
+      type: object
+      additionalProperties: false
+      required: [balances, entries]
+      properties:
+        balances:
+          type: array
+          items: { $ref: '#/components/schemas/StarBalance' }
+        entries:
+          type: array
+          items: { $ref: '#/components/schemas/StarLedgerEntry' }
+
+    StarClaimRequest:
+      type: object
+      additionalProperties: false
+      required: [profile_id, source]
+      properties:
+        profile_id: { type: string }
+        source: { type: string }
+        day: { type: string, description: Per-day scoping; omit for a non-day achievement. }
+        stars: { type: integer, minimum: 1, maximum: 10, description: Defaults to 1. }
+
+    StarClaimResponse:
+      type: object
+      additionalProperties: false
+      required: [claimed, entry, balance]
+      properties:
+        claimed:
+          type: boolean
+          description: False when already claimed (idempotent no-op).
+        entry:
+          $ref: '#/components/schemas/StarLedgerEntry'
+        balance:
+          type: integer
+          description: The child's new total.
+
+    PackingItem:
+      type: object
+      additionalProperties: false
+      required: [id, label, packed, created_at, updated_at]
+      properties:
+        id: { type: string }
+        profile_id: { type: [string, 'null'] }
+        label: { type: string }
+        category: { type: [string, 'null'] }
+        packed: { type: boolean }
+        position: { type: [integer, 'null'] }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    PackingListResponse:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/PackingItem' }
+
+    PackingItemInput:
+      type: object
+      additionalProperties: false
+      required: [label]
+      properties:
+        label: { type: string }
+        profile_id: { type: [string, 'null'] }
+        category: { type: [string, 'null'] }
+        packed: { type: boolean }
+        position: { type: [integer, 'null'] }
+
+    PackingItemUpdate:
+      type: object
+      additionalProperties: false
+      properties:
+        label: { type: string }
+        profile_id: { type: [string, 'null'] }
+        category: { type: [string, 'null'] }
+        packed: { type: boolean }
+        position: { type: [integer, 'null'] }
+
+    ChecklistItem:
+      type: object
+      additionalProperties: false
+      required: [item, checked, updated_at]
+      properties:
+        item: { type: string }
+        checked: { type: boolean }
+        updated_at: { type: string, format: date-time }
+
+    ChecklistResponse:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/ChecklistItem' }
+
+    ChecklistUpdateRequest:
+      type: object
+      additionalProperties: false
+      description: A single { item, checked } or a batch via items.
+      properties:
+        item: { type: string }
+        checked: { type: boolean }
+        items:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [item, checked]
+            properties:
+              item: { type: string }
+              checked: { type: boolean }
 
     Trip:
       type: object
