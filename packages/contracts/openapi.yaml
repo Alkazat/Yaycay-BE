@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Yaycay API
-  version: 0.9.0
+  version: 0.10.0
   description: >
     Yaycay back-end HTTP API. The v0.1 surface (Phase 0) is the free-demo
     generator, signup/lead capture, the 2FA verify step, and trip + trip-content
@@ -2290,6 +2290,14 @@ components:
         trip_id: { type: string }
         profile_id: { type: [string, 'null'] }
         body: { type: string }
+        mood:
+          type: [string, 'null']
+          description: Short mood label the FE maps to its mood picker.
+        stars:
+          type: [integer, 'null']
+          minimum: 1
+          maximum: 5
+          description: A 1-5 star rating of the day/moment.
         media_ref:
           type: array
           items: { type: string }
@@ -2301,6 +2309,8 @@ components:
       properties:
         body: { type: string }
         profile_id: { type: string }
+        mood: { type: string }
+        stars: { type: integer, minimum: 1, maximum: 5 }
         media_ref:
           type: array
           items: { type: string }

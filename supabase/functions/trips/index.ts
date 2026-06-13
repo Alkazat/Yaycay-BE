@@ -384,7 +384,7 @@ async function handleIngest(
   }
 }
 
-const JOURNAL_COLUMNS = 'id, trip_id, profile_id, body, media_ref, created_at';
+const JOURNAL_COLUMNS = 'id, trip_id, profile_id, body, mood, stars, media_ref, created_at';
 
 async function handleJournalList(client: UserClient, tripId: string, url: URL): Promise<Response> {
   let q = client
@@ -412,11 +412,21 @@ async function handleJournalCreate(
   const body = await readJson(req);
   const text = typeof body.body === 'string' ? body.body : '';
   const profileId = typeof body.profile_id === 'string' ? body.profile_id : null;
+  const mood = typeof body.mood === 'string' ? body.mood : null;
   const mediaRef = Array.isArray(body.media_ref)
     ? (body.media_ref as unknown[]).filter((x): x is string => typeof x === 'string')
     : [];
   if (text.trim().length === 0 && mediaRef.length === 0) {
     throw new ValidationError(['Provide body text or media_ref.']);
+  }
+
+  let stars: number | null = null;
+  if (body.stars !== undefined && body.stars !== null) {
+    const n = Number(body.stars);
+    if (!Number.isInteger(n) || n < 1 || n > 5) {
+      throw new ValidationError(['stars must be an integer 1-5']);
+    }
+    stars = n;
   }
 
   const { data, error: dbErr } = await client
@@ -426,6 +436,8 @@ async function handleJournalCreate(
       user_id: userId,
       profile_id: profileId,
       body: text,
+      mood,
+      stars,
       media_ref: mediaRef,
     })
     .select(JOURNAL_COLUMNS)
