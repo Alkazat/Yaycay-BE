@@ -33,6 +33,28 @@ export interface AdminSession {
   mfaVerified: boolean;
 }
 
+/** An account in the isolated identity store, as surfaced to admin management. */
+export interface AdminAccount {
+  userId: string;
+  email: string;
+  role: Role;
+  createdAt?: string;
+}
+
+export interface AdminAccountsResponse {
+  items: AdminAccount[];
+}
+
+/**
+ * Request body for `POST /admin/admins`: set an account's role by email
+ * (promote to `admin`, or demote to `user`). The account must already exist
+ * (provisioned on the person's first sign-in); an unknown email is a 404.
+ */
+export interface AdminPromoteRequest {
+  email: string;
+  role: Role;
+}
+
 /**
  * Child profile as surfaced to admin inspection screens. Named `AdminChildProfile`
  * to leave the canonical `ChildProfile` (the customer surface, `GET /profiles`)

@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Yaycay API
-  version: 0.13.0
+  version: 0.14.0
   description: >
     Yaycay back-end HTTP API. The v0.1 surface (Phase 0) is the free-demo
     generator, signup/lead capture, the 2FA verify step, and trip + trip-content
@@ -1247,6 +1247,59 @@ paths:
                 $ref: '#/components/schemas/PurchaseSummaryPage'
         '403':
           $ref: '#/components/responses/Forbidden'
+
+  /admin/admins:
+    get:
+      operationId: listAdmins
+      tags: [admin]
+      summary: List admin accounts.
+      security:
+        - adminAuth: []
+      responses:
+        '200':
+          description: The accounts with role=admin.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AdminAccount'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      operationId: setAdminRole
+      tags: [admin]
+      summary: Set an account's role by email (promote/demote).
+      description: >
+        Sets `role` on the account with the given email. The account must already
+        exist (provisioned on the person's first sign-in); an unknown email is a
+        404 (no pending-invite flow). Audited.
+      security:
+        - adminAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminPromoteRequest'
+      responses:
+        '200':
+          description: The updated account.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminAccount'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/ProblemNotFound'
+        '422':
+          $ref: '#/components/responses/ProblemUnprocessable'
 
   /profiles:
     get:
@@ -2620,6 +2673,9 @@ components:
         id: { type: string }
         trip_id: { type: string }
         profile_id: { type: [string, 'null'] }
+        day_id:
+          type: [string, 'null']
+          description: Content day this entry is scoped to (TripContent.days[].id); null = trip-level.
         body: { type: string }
         mood:
           type: [string, 'null']
@@ -2640,6 +2696,7 @@ components:
       properties:
         body: { type: string }
         profile_id: { type: string }
+        day_id: { type: string, description: 'Content day this entry is scoped to (e.g. d_2).' }
         mood: { type: string }
         stars: { type: integer, minimum: 1, maximum: 5 }
         media_ref:
@@ -2761,6 +2818,24 @@ components:
         email: { type: [string, 'null'] }
         role: { $ref: '#/components/schemas/Role' }
         mfaVerified: { type: boolean }
+
+    AdminAccount:
+      type: object
+      additionalProperties: false
+      required: [userId, email, role]
+      properties:
+        userId: { type: string }
+        email: { type: string }
+        role: { $ref: '#/components/schemas/Role' }
+        createdAt: { type: string, format: date-time }
+
+    AdminPromoteRequest:
+      type: object
+      additionalProperties: false
+      required: [email, role]
+      properties:
+        email: { type: string }
+        role: { $ref: '#/components/schemas/Role' }
 
     Prompt:
       type: object
