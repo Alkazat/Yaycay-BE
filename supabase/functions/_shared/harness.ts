@@ -9,7 +9,17 @@
 // output without a live model.
 
 import { optionalEnv } from './env.ts';
-import type { Activity, Day, ExplorerMode, Moment, TripContent } from './content-types.ts';
+import type {
+  Activity,
+  Challenge,
+  Day,
+  ExplorerMode,
+  Moment,
+  Safety,
+  StarChallenge,
+  TripContent,
+  Variants,
+} from './content-types.ts';
 import type { TripContentPatch } from './trip-patch.ts';
 
 export interface DemoChildInput {
@@ -88,19 +98,64 @@ export async function generateDemoDay(input: DemoDayInput): Promise<DemoDayResul
 
 // Tool schema for the demo day. The model fills this rather than free-typing
 // JSON, so the API guarantees the returned `input` is syntactically valid JSON -
-// no more brittle text parsing that breaks on a missing comma. The schema is
-// permissive; normaliseDay does the final coercion.
+// no more brittle text parsing that breaks on a missing comma. The schema mirrors
+// the rich content model (per-mode variants, facts, typed challenge, did_you_know,
+// allergy safety) so the model produces everything the FE renders; normaliseDay
+// does the final coercion.
+const VARIANT_SCHEMA = {
+  type: 'object',
+  properties: {
+    body: { type: 'string', description: 'Activity copy pitched at this mode.' },
+    fact: { type: 'string', description: 'A fun, true, destination-specific fact.' },
+    quiz: {
+      type: 'object',
+      properties: {
+        q: { type: 'string' },
+        a: { type: 'string' },
+        options: { type: 'array', items: { type: 'string' } },
+      },
+    },
+  },
+};
+
+const CHALLENGE_SCHEMA = {
+  type: 'object',
+  description: 'A typed mini-challenge for the child.',
+  properties: {
+    type: { type: 'string', enum: ['quiz', 'spot', 'photo', 'challenge'] },
+    prompt: { type: 'string' },
+    answer: { type: 'string' },
+    options: { type: 'array', items: { type: 'string' } },
+    stars: { type: 'number', description: 'Stars earned (1-3).' },
+  },
+  required: ['type', 'prompt'],
+};
+
 const DAY_TOOL = {
   name: 'build_day',
-  description: 'Return one delightful holiday day for the family.',
+  description: 'Return one delightful, destination-specific holiday day for the family.',
   input_schema: {
     type: 'object',
-    required: ['moments'],
+    required: ['summary', 'did_you_know', 'moments'],
     properties: {
       id: { type: 'string' },
       date: { type: 'string', description: 'YYYY-MM-DD' },
-      label: { type: 'string' },
-      summary: { type: 'string' },
+      label: { type: 'string', description: 'Short day title, e.g. "A day in Kyoto".' },
+      summary: { type: 'string', description: 'One warm sentence framing the day.' },
+      did_you_know: {
+        type: 'string',
+        description: 'A surprising, true, kid-friendly fact about the destination.',
+      },
+      star_challenge: {
+        type: 'object',
+        description: "The day's headline star challenge for the child.",
+        properties: {
+          title: { type: 'string' },
+          prompt: { type: 'string' },
+          stars: { type: 'number' },
+        },
+        required: ['title'],
+      },
       moments: {
         type: 'array',
         description: '3-4 moments across the day.',
@@ -115,6 +170,15 @@ const DAY_TOOL = {
             },
             title: { type: 'string' },
             time_hint: { type: 'string', description: 'HH:MM' },
+            location: {
+              type: 'object',
+              properties: {
+                name: { type: 'string' },
+                lat: { type: 'number' },
+                lng: { type: 'number' },
+                zoom: { type: 'number' },
+              },
+            },
             activities: {
               type: 'array',
               description: '1-2 activities per moment.',
@@ -126,12 +190,30 @@ const DAY_TOOL = {
                   kind: { type: 'string', enum: ['kid', 'shared', 'adult'] },
                   title: { type: 'string' },
                   body: { type: 'string' },
+                  facts: {
+                    type: 'array',
+                    items: { type: 'string' },
+                    description: '1-3 true, destination-specific facts a child would love.',
+                  },
+                  challenge: CHALLENGE_SCHEMA,
                   variants: {
                     type: 'object',
                     description:
-                      "Keyed by the child's explorer mode; each value has a fun fact and one quiz.",
+                      'Keyed by explorer mode (little|standard|explorer|explorer_plus); each value tailors copy/fact/quiz to that mode.',
+                    properties: {
+                      little: VARIANT_SCHEMA,
+                      standard: VARIANT_SCHEMA,
+                      explorer: VARIANT_SCHEMA,
+                      explorer_plus: VARIANT_SCHEMA,
+                    },
                   },
-                  safety: { type: 'object', properties: { note: { type: 'string' } } },
+                  safety: {
+                    type: 'object',
+                    properties: {
+                      note: { type: 'string' },
+                      flags: { type: 'array', items: { type: 'string' } },
+                    },
+                  },
                 },
               },
             },
@@ -143,12 +225,18 @@ const DAY_TOOL = {
 };
 
 async function generateWithClaude(input: DemoDayInput, apiKey: string): Promise<Day> {
+  const mode = input.child.mode ?? 'explorer';
   const system =
     'You build a single delightful holiday day for a family travel app called Yaycay. ' +
-    'Call the build_day tool. The day has 3-4 moments, each with 1-2 activities. Use kind ' +
-    '"kid" for child activities and "adult" for grown-up ones. For the child include a ' +
-    'variants block keyed by their explorer mode with a fun fact and a single quiz. Surface ' +
-    'any dietary flags as an activity safety note. Keep copy warm and sunny. No em-dashes.';
+    'Call the build_day tool. Make everything specific to the destination - real places, ' +
+    'real local detail, never generic filler. The day has 3-4 moments, each with 1-2 ' +
+    'activities. Use kind "kid" for child activities and "adult" for grown-up ones. ' +
+    `Tailor each kid activity to the child's explorer mode ("${mode}"): set a variants block ` +
+    'with at least that mode, giving a destination-specific fun fact and a single quiz. Add ' +
+    '1-3 true "facts" and one typed "challenge" (quiz/spot/photo/challenge) to kid ' +
+    'activities. Set the day "did_you_know" to a surprising local fact and a "star_challenge" ' +
+    'for the child. If the child has dietary or medical flags, surface them as an activity ' +
+    'safety note and flags. Keep copy warm and sunny. No em-dashes.';
 
   const data = await callAnthropicTool(apiKey, {
     system,
@@ -213,7 +301,20 @@ async function callAnthropicTool(
   return (toolUse as { input: unknown }).input;
 }
 
-// Coerce model output into a well-formed Day, filling required ids/fields.
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === 'object' && v !== null && !Array.isArray(v);
+}
+
+function stringArray(v: unknown): string[] | undefined {
+  if (!Array.isArray(v)) return undefined;
+  const out = v.filter((x): x is string => typeof x === 'string');
+  return out.length > 0 ? out : undefined;
+}
+
+// Coerce model output into a well-formed Day, filling required ids/fields and
+// carrying through the rich fields (did_you_know, star_challenge, location,
+// facts, typed challenge, per-mode variants, allergy safety) so the FE renders
+// the full experience, not a stripped-down day.
 function normaliseDay(raw: unknown, input: DemoDayInput): Day {
   const r = (raw ?? {}) as Record<string, unknown>;
   const moments = Array.isArray(r.moments) ? r.moments : [];
@@ -222,6 +323,8 @@ function normaliseDay(raw: unknown, input: DemoDayInput): Day {
     date: typeof r.date === 'string' ? r.date : input.date,
     label: typeof r.label === 'string' ? r.label : `A day in ${input.destination}`,
     summary: typeof r.summary === 'string' ? r.summary : undefined,
+    did_you_know: typeof r.did_you_know === 'string' ? r.did_you_know : undefined,
+    star_challenge: isRecord(r.star_challenge) ? (r.star_challenge as StarChallenge) : undefined,
     moments: moments.map((m, mi) => {
       const mm = (m ?? {}) as Record<string, unknown>;
       const acts = Array.isArray(mm.activities) ? mm.activities : [];
@@ -230,6 +333,10 @@ function normaliseDay(raw: unknown, input: DemoDayInput): Day {
         slot: isSlot(mm.slot) ? mm.slot : 'anytime',
         title: typeof mm.title === 'string' ? mm.title : `Moment ${mi + 1}`,
         time_hint: typeof mm.time_hint === 'string' ? mm.time_hint : undefined,
+        location:
+          isRecord(mm.location) && typeof mm.location.name === 'string'
+            ? (mm.location as Moment['location'])
+            : undefined,
         activities: acts.map((a, ai) => {
           const aa = (a ?? {}) as Record<string, unknown>;
           return {
@@ -238,8 +345,10 @@ function normaliseDay(raw: unknown, input: DemoDayInput): Day {
               aa.kind === 'kid' || aa.kind === 'shared' || aa.kind === 'adult' ? aa.kind : 'shared',
             title: typeof aa.title === 'string' ? aa.title : 'Activity',
             body: typeof aa.body === 'string' ? aa.body : undefined,
-            variants: (aa.variants as Activity_variants) ?? undefined,
-            safety: (aa.safety as { note?: string }) ?? undefined,
+            facts: stringArray(aa.facts),
+            challenge: isRecord(aa.challenge) ? (aa.challenge as Challenge) : undefined,
+            variants: isRecord(aa.variants) ? (aa.variants as Variants) : undefined,
+            safety: isRecord(aa.safety) ? (aa.safety as Safety) : undefined,
           };
         }),
       };
@@ -247,8 +356,6 @@ function normaliseDay(raw: unknown, input: DemoDayInput): Day {
   };
   return day.moments.length > 0 ? day : buildFallbackDay(input).day;
 }
-
-type Activity_variants = NonNullable<Day['moments'][number]['activities'][number]['variants']>;
 
 function isSlot(v: unknown): v is Day['moments'][number]['slot'] {
   return (
@@ -286,6 +393,12 @@ export function buildFallbackDay(input: DemoDayInput): Omit<DemoDayResult, 'gene
     date: input.date,
     label: `A day in ${dest}`,
     summary: `A taste of ${dest} built just for ${name}.`,
+    did_you_know: `Every place has a secret - in ${dest}, the best ones are found by looking up.`,
+    star_challenge: {
+      title: `${name}'s ${dest} star hunt`,
+      prompt: 'Find one thing today that surprises you and tell a grown-up about it.',
+      stars: 3,
+    },
     moments: [
       {
         id: 'm_1',
@@ -298,6 +411,15 @@ export function buildFallbackDay(input: DemoDayInput): Omit<DemoDayResult, 'gene
             kind: 'kid',
             title: 'Spot five hidden things',
             body: `A gentle morning wander to wake up in ${dest}.`,
+            facts: [
+              `${dest} has stories on every corner - keep your eyes peeled!`,
+              'Explorers notice the small things other people walk straight past.',
+            ],
+            challenge: {
+              type: 'spot',
+              prompt: 'Spot five hidden things on your morning walk.',
+              stars: 2,
+            },
             variants: {
               [mode]: {
                 fact: `${dest} has stories on every corner - keep your eyes peeled!`,
