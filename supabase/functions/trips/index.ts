@@ -211,6 +211,40 @@ Deno.serve(async (req) => {
       return error('method_not_allowed', 'Use GET or PATCH.', 405);
     }
 
+    // /trips/:id/stars  ·  /trips/:id/stars/claim - the reward economy.
+    if (seg[1] === 'stars') {
+      if (seg.length === 2 && req.method === 'GET')
+        return await handleStarsGet(client, tripId, url);
+      if (seg.length === 3 && seg[2] === 'claim' && req.method === 'POST') {
+        return await handleStarsClaim(client, userId, tripId, req);
+      }
+      return error('method_not_allowed', 'Use GET /stars or POST /stars/claim.', 405);
+    }
+
+    // /trips/:id/packing  ·  /…/:itemId  ·  /…/reset - packing list (tick + CRUD).
+    if (seg[1] === 'packing') {
+      if (seg.length === 2) {
+        if (req.method === 'GET') return await handlePackingList(client, tripId);
+        if (req.method === 'POST') return await handlePackingCreate(client, userId, tripId, req);
+        return error('method_not_allowed', 'Use GET or POST.', 405);
+      }
+      if (seg.length === 3 && seg[2] === 'reset' && req.method === 'POST') {
+        return await handlePackingReset(client, tripId);
+      }
+      if (seg.length === 3) {
+        if (req.method === 'PATCH') return await handlePackingUpdate(client, tripId, seg[2], req);
+        if (req.method === 'DELETE') return await handlePackingDelete(client, tripId, seg[2]);
+        return error('method_not_allowed', 'Use PATCH or DELETE.', 405);
+      }
+    }
+
+    // /trips/:id/grownups/checklist - persisted grown-ups checklist ticks.
+    if (seg.length === 3 && seg[1] === 'grownups' && seg[2] === 'checklist') {
+      if (req.method === 'GET') return await handleChecklistGet(client, tripId);
+      if (req.method === 'PATCH') return await handleChecklistUpdate(client, userId, tripId, req);
+      return error('method_not_allowed', 'Use GET or PATCH.', 405);
+    }
+
     return error('not_found', 'No such route.', 404);
   } catch (err) {
     if (err instanceof UnauthorizedError) {
@@ -529,6 +563,251 @@ async function handleProgressUpdate(
     .single();
   if (dbErr) throw new Error(dbErr.message);
   return json(toProgress(data as Record<string, unknown>));
+}
+
+// Confirm the caller can see the trip (RLS); an unknown id becomes a clean 404.
+async function ensureTripVisible(client: UserClient, tripId: string): Promise<void> {
+  const { data } = await client.from('trips').select('id').eq('id', tripId).maybeSingle();
+  if (!data) throw new NotFoundError();
+}
+
+// ----- Stars (reward economy) ------------------------------------------------
+
+const STAR_COLUMNS = 'id, profile_id, source, day, stars, created_at';
+
+async function handleStarsGet(client: UserClient, tripId: string, url: URL): Promise<Response> {
+  await ensureTripVisible(client, tripId);
+  let q = client
+    .from('star_ledger')
+    .select(STAR_COLUMNS)
+    .eq('trip_id', tripId)
+    .order('created_at', { ascending: false });
+  const profileId = url.searchParams.get('profile_id');
+  if (profileId) q = q.eq('profile_id', profileId);
+  const { data, error: dbErr } = await q;
+  if (dbErr) throw new Error(dbErr.message);
+
+  const entries = (data ?? []) as Array<Record<string, unknown>>;
+  const balances = new Map<string, number>();
+  for (const e of entries) {
+    const pid = e.profile_id as string;
+    balances.set(pid, (balances.get(pid) ?? 0) + Number(e.stars));
+  }
+  return json({
+    balances: [...balances].map(([profile_id, stars]) => ({ profile_id, stars })),
+    entries,
+  });
+}
+
+async function handleStarsClaim(
+  client: UserClient,
+  userId: string,
+  tripId: string,
+  req: Request,
+): Promise<Response> {
+  await ensureTripVisible(client, tripId);
+  const body = await readJson(req);
+  const profileId = typeof body.profile_id === 'string' ? body.profile_id : '';
+  const source = typeof body.source === 'string' ? body.source.trim() : '';
+  if (!profileId) throw new ValidationError(['profile_id is required']);
+  if (!source) throw new ValidationError(['source is required']);
+  const day = typeof body.day === 'string' ? body.day : '';
+
+  let stars = 1;
+  if (body.stars !== undefined) {
+    const n = Number(body.stars);
+    if (!Number.isInteger(n) || n < 1 || n > 10) {
+      throw new ValidationError(['stars must be an integer 1-10']);
+    }
+    stars = n;
+  }
+
+  // Idempotent: a duplicate (trip, profile, day, source) is ignored, not doubled.
+  const { error: insErr } = await client
+    .from('star_ledger')
+    .insert({ trip_id: tripId, user_id: userId, profile_id: profileId, source, day, stars });
+  let claimed = true;
+  if (insErr) {
+    if ((insErr as { code?: string }).code === '23505') claimed = false;
+    else throw new Error(insErr.message);
+  }
+
+  const { data: entry } = await client
+    .from('star_ledger')
+    .select(STAR_COLUMNS)
+    .eq('trip_id', tripId)
+    .eq('profile_id', profileId)
+    .eq('day', day)
+    .eq('source', source)
+    .maybeSingle();
+
+  const { data: rows } = await client
+    .from('star_ledger')
+    .select('stars')
+    .eq('trip_id', tripId)
+    .eq('profile_id', profileId);
+  const balance = (rows ?? []).reduce((s, r) => s + Number((r as { stars: number }).stars), 0);
+
+  return json({ claimed, entry, balance }, claimed ? 201 : 200);
+}
+
+// ----- Packing list ----------------------------------------------------------
+
+const PACKING_COLUMNS = 'id, profile_id, label, category, packed, position, created_at, updated_at';
+
+async function handlePackingList(client: UserClient, tripId: string): Promise<Response> {
+  await ensureTripVisible(client, tripId);
+  const { data, error: dbErr } = await client
+    .from('packing_items')
+    .select(PACKING_COLUMNS)
+    .eq('trip_id', tripId)
+    .order('position', { ascending: true, nullsFirst: false })
+    .order('created_at', { ascending: true });
+  if (dbErr) throw new Error(dbErr.message);
+  return json({ items: data ?? [] });
+}
+
+async function handlePackingCreate(
+  client: UserClient,
+  userId: string,
+  tripId: string,
+  req: Request,
+): Promise<Response> {
+  await ensureTripVisible(client, tripId);
+  const body = await readJson(req);
+  const label = typeof body.label === 'string' ? body.label.trim() : '';
+  if (!label) throw new ValidationError(['label is required']);
+
+  const { data, error: dbErr } = await client
+    .from('packing_items')
+    .insert({
+      trip_id: tripId,
+      user_id: userId,
+      profile_id: typeof body.profile_id === 'string' ? body.profile_id : null,
+      label,
+      category: typeof body.category === 'string' ? body.category : null,
+      packed: body.packed === true,
+      position: Number.isInteger(body.position) ? (body.position as number) : null,
+    })
+    .select(PACKING_COLUMNS)
+    .single();
+  if (dbErr) throw new Error(dbErr.message);
+  return json(data, 201);
+}
+
+async function handlePackingUpdate(
+  client: UserClient,
+  tripId: string,
+  itemId: string,
+  req: Request,
+): Promise<Response> {
+  const body = await readJson(req);
+  const patch: Record<string, unknown> = {};
+  if (body.label !== undefined) {
+    if (typeof body.label !== 'string' || body.label.trim().length === 0) {
+      throw new ValidationError(['label must be a non-empty string']);
+    }
+    patch.label = body.label.trim();
+  }
+  if (body.category !== undefined) {
+    patch.category = typeof body.category === 'string' ? body.category : null;
+  }
+  if (body.packed !== undefined) patch.packed = body.packed === true;
+  if (body.position !== undefined) {
+    patch.position = Number.isInteger(body.position) ? (body.position as number) : null;
+  }
+  if (body.profile_id !== undefined) {
+    patch.profile_id = typeof body.profile_id === 'string' ? body.profile_id : null;
+  }
+  if (Object.keys(patch).length === 0) throw new ValidationError(['No updatable fields provided.']);
+
+  const { data, error: dbErr } = await client
+    .from('packing_items')
+    .update(patch)
+    .eq('id', itemId)
+    .eq('trip_id', tripId)
+    .select(PACKING_COLUMNS)
+    .maybeSingle();
+  if (dbErr) throw new Error(dbErr.message);
+  if (!data) throw new NotFoundError();
+  return json(data);
+}
+
+async function handlePackingDelete(
+  client: UserClient,
+  tripId: string,
+  itemId: string,
+): Promise<Response> {
+  const { data, error: dbErr } = await client
+    .from('packing_items')
+    .delete()
+    .eq('id', itemId)
+    .eq('trip_id', tripId)
+    .select('id')
+    .maybeSingle();
+  if (dbErr) throw new Error(dbErr.message);
+  if (!data) throw new NotFoundError();
+  return json({ deleted: true });
+}
+
+async function handlePackingReset(client: UserClient, tripId: string): Promise<Response> {
+  await ensureTripVisible(client, tripId);
+  const { error: dbErr } = await client
+    .from('packing_items')
+    .update({ packed: false })
+    .eq('trip_id', tripId);
+  if (dbErr) throw new Error(dbErr.message);
+  return handlePackingList(client, tripId);
+}
+
+// ----- Grown-ups checklist ---------------------------------------------------
+
+const CHECKLIST_COLUMNS = 'item, checked, updated_at';
+
+async function handleChecklistGet(client: UserClient, tripId: string): Promise<Response> {
+  await ensureTripVisible(client, tripId);
+  const { data, error: dbErr } = await client
+    .from('grownups_checklist')
+    .select(CHECKLIST_COLUMNS)
+    .eq('trip_id', tripId)
+    .order('item', { ascending: true });
+  if (dbErr) throw new Error(dbErr.message);
+  return json({ items: data ?? [] });
+}
+
+async function handleChecklistUpdate(
+  client: UserClient,
+  userId: string,
+  tripId: string,
+  req: Request,
+): Promise<Response> {
+  await ensureTripVisible(client, tripId);
+  const body = await readJson(req);
+
+  // Accept a single {item, checked} or a batch {items: [...]}.
+  const items: Array<{ item: string; checked: boolean }> = [];
+  if (Array.isArray(body.items)) {
+    for (const it of body.items as unknown[]) {
+      const o = (it ?? {}) as Record<string, unknown>;
+      if (typeof o.item === 'string') items.push({ item: o.item, checked: o.checked === true });
+    }
+  } else if (typeof body.item === 'string') {
+    items.push({ item: body.item, checked: body.checked === true });
+  }
+  if (items.length === 0) throw new ValidationError(['Provide item + checked, or items[].']);
+
+  const rows = items.map((i) => ({
+    trip_id: tripId,
+    user_id: userId,
+    item: i.item,
+    checked: i.checked,
+    updated_at: new Date().toISOString(),
+  }));
+  const { error: dbErr } = await client
+    .from('grownups_checklist')
+    .upsert(rows, { onConflict: 'trip_id,item' });
+  if (dbErr) throw new Error(dbErr.message);
+  return handleChecklistGet(client, tripId);
 }
 
 async function tripDestination(client: UserClient, tripId: string): Promise<string> {
