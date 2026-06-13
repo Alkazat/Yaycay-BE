@@ -17,7 +17,7 @@ GitHub Packages registry for the `@alkazat` scope:
 @alkazat:registry=https://npm.pkg.github.com
 ```
 
-Current version: **`0.8.0`**. Pin `@alkazat/contracts@^0.8.0` (the admin surface
+Current version: **`0.9.0`**. Pin `@alkazat/contracts@^0.9.0` (the admin surface
 that earlier handoffs called `^0.2.0` ships within this range).
 
 GitHub Packages requires auth to install **even public packages**. Each consumer
@@ -118,6 +118,8 @@ server-resolved (not a claim). Audit sink is `public.admin_audit_log`
 | `GET/POST /trips/:id/journal` | `JournalEntry` (POST paid) | ✅ served (v0.6) |
 | `POST /media/sign-upload` | `SignUploadResponse` (signed Storage URL, paid) | ✅ served (v0.6) |
 | `POST /connectors/byo-ai` · `GET /connectors` · `POST /mcp` | BYO-AI MCP (tier=byo) | ✅ served (v0.6) |
+| `GET /profiles` · `POST /profiles` · `PATCH/DELETE /profiles/:id` | `ChildProfile` (CRUD) | ✅ served (v0.9) |
+| `GET /trips/:id/progress` · `PATCH /trips/:id/progress` | `TripProgress` (per-profile done + active mode) | ✅ served (v0.9) |
 | `GET /admin/me` | `AdminSession` (role + MFA) | ✅ served (v0.6) |
 | `GET /admin/products` | `{ items: ProductSummary[] }` (all, incl. inactive) | ✅ served (v0.8) |
 | `POST /admin/products` | `ProductSummary` (add a catalogue product) | ✅ served (v0.8) |
@@ -163,9 +165,15 @@ These are specced by consumers but not built. They will be added to the contract
 
 | Need | Planned shape | Slice |
 |---|---|---|
-| Child profiles | `GET /profiles -> { profiles: ChildProfile[] }` | profiles/progress |
-| Per-profile progress | `GET/PATCH /trips/:id/progress` | profiles/progress |
 | Account summary | `GET /account -> AccountSummary` | account |
+
+**Profiles + progress shipped (v0.9).** `GET/POST /profiles`,
+`PATCH/DELETE /profiles/:id`, and `GET/PATCH /trips/:id/progress` are now served
+(profiles run as `/profiles`, progress under `/trips`). The profile `mode` enum
+is `little|standard|explorer|explorer_plus` — the FE's `standard` is included.
+The admin inspection shape was renamed **`ChildProfile` → `AdminChildProfile`**
+(same precedent as `AdminTripSummary`) so the canonical customer `ChildProfile`
+is unambiguous; **Admin: import `AdminChildProfile`.**
 
 ### Commerce setup (Stripe)
 

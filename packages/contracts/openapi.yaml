@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Yaycay API
-  version: 0.8.0
+  version: 0.9.0
   description: >
     Yaycay back-end HTTP API. The v0.1 surface (Phase 0) is the free-demo
     generator, signup/lead capture, the 2FA verify step, and trip + trip-content
@@ -1248,6 +1248,167 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
 
+  /profiles:
+    get:
+      operationId: listProfiles
+      tags: [trips]
+      summary: List the caller's child profiles.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: The caller's children (RLS scoped to the account).
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [profiles]
+                properties:
+                  profiles:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ChildProfile'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      operationId: createProfile
+      tags: [trips]
+      summary: Add a child profile.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChildProfileInput'
+      responses:
+        '201':
+          description: The created profile.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChildProfile'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /profiles/{profileId}:
+    parameters:
+      - name: profileId
+        in: path
+        required: true
+        schema: { type: string }
+    patch:
+      operationId: updateProfile
+      tags: [trips]
+      summary: Update a child profile.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChildProfileInput'
+      responses:
+        '200':
+          description: The updated profile.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChildProfile'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+    delete:
+      operationId: deleteProfile
+      tags: [trips]
+      summary: Delete a child profile.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Deleted.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [deleted]
+                properties:
+                  deleted: { type: boolean }
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /trips/{tripId}/progress:
+    parameters:
+      - $ref: '#/components/parameters/TripId'
+    get:
+      operationId: getTripProgress
+      tags: [trips]
+      summary: Per-profile progress for a trip.
+      description: >
+        Returns one row per profile that has progress on this trip. Filter to a
+        single child with `?profile_id=`.
+      security:
+        - bearerAuth: []
+      parameters:
+        - { name: profile_id, in: query, schema: { type: string } }
+      responses:
+        '200':
+          description: Progress rows.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [progress]
+                properties:
+                  progress:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/TripProgress'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      operationId: updateTripProgress
+      tags: [trips]
+      summary: Set a child's progress (active mode + done items).
+      description: >
+        Upserts the (trip, profile) progress row. Pass `done_items` to replace the
+        done set, or `mark_done`/`mark_undone` to change it incrementally.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProgressUpdateRequest'
+      responses:
+        '200':
+          description: The updated progress row.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TripProgress'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
 components:
   securitySchemes:
     bearerAuth:
@@ -1389,6 +1550,86 @@ components:
     TripStatus:
       type: string
       enum: [draft, planning, ready, holidaying, complete, archived]
+
+    ExplorerMode:
+      type: string
+      enum: [little, standard, explorer, explorer_plus]
+      description: The child-facing difficulty/voice band.
+
+    ChildProfile:
+      type: object
+      additionalProperties: false
+      required: [id, name, interests, dietary, medical, created_at, updated_at]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        avatar: { type: string, nullable: true }
+        age: { type: integer, nullable: true }
+        mode:
+          oneOf: [{ $ref: '#/components/schemas/ExplorerMode' }, { type: 'null' }]
+        interests: { type: array, items: { type: string } }
+        dietary:
+          type: array
+          items: { type: string }
+          description: Dietary flags surfaced to adults as content safety notes.
+        medical:
+          type: array
+          items: { type: string }
+          description: Medical flags surfaced to adults as content safety callouts.
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    ChildProfileInput:
+      type: object
+      additionalProperties: false
+      description: Create (name required) or update (all optional) a child profile.
+      properties:
+        name: { type: string }
+        avatar: { type: string, nullable: true }
+        age: { type: integer, nullable: true, minimum: 0, maximum: 18 }
+        mode:
+          oneOf: [{ $ref: '#/components/schemas/ExplorerMode' }, { type: 'null' }]
+        interests: { type: array, items: { type: string } }
+        dietary: { type: array, items: { type: string } }
+        medical: { type: array, items: { type: string } }
+
+    TripProgress:
+      type: object
+      additionalProperties: false
+      required: [profile_id, done_items, updated_at]
+      properties:
+        profile_id:
+          type: string
+          nullable: true
+          description: The child this progress belongs to.
+        active_mode:
+          oneOf: [{ $ref: '#/components/schemas/ExplorerMode' }, { type: 'null' }]
+        done_items:
+          type: array
+          items: { type: string }
+          description: Ids of content items (activities, challenges) marked done.
+        updated_at: { type: string, format: date-time }
+
+    ProgressUpdateRequest:
+      type: object
+      additionalProperties: false
+      required: [profile_id]
+      properties:
+        profile_id: { type: string }
+        active_mode:
+          $ref: '#/components/schemas/ExplorerMode'
+        done_items:
+          type: array
+          items: { type: string }
+          description: Full replacement of the done set.
+        mark_done:
+          type: array
+          items: { type: string }
+          description: 'Incremental: add these item ids to the done set.'
+        mark_undone:
+          type: array
+          items: { type: string }
+          description: 'Incremental: remove these item ids from the done set.'
 
     Trip:
       type: object

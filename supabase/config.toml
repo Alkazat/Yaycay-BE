@@ -68,6 +68,10 @@ verify_jwt = true
 [functions.connectors]
 verify_jwt = true
 
+# Child profiles run as the caller (RLS scopes every row to their account).
+[functions.profiles]
+verify_jwt = true
+
 # The MCP endpoint authenticates with a connector token, not a Supabase JWT, so
 # the gateway must not require one; the handler verifies the token signature.
 [functions.mcp]

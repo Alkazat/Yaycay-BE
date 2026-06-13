@@ -3,7 +3,7 @@
  * in `openapi.yaml`. Clients import these rather than redeclaring shapes.
  */
 
-import type { Activity, Booking, Day, Moment, TripContent } from './trip-content.js';
+import type { Activity, Booking, Day, ExplorerMode, Moment, TripContent } from './trip-content.js';
 
 /** How a trip was bought; drives entitlement and the AI path. */
 export type Tier = 'free' | 'byo' | 'ours';
@@ -281,4 +281,65 @@ export interface ByoConnectorResponse {
   token: string;
   /** The MCP endpoint URL the token authenticates against. */
   mcp_url: string;
+}
+
+// ===== Profiles + progress (v0.9) ==========================================
+
+/** A child on the account. Gates the per-child experience (modes, journal, stars). */
+export interface ChildProfile {
+  id: string;
+  name: string;
+  avatar?: string | null;
+  age?: number | null;
+  /** Default explorer mode for this child. */
+  mode?: ExplorerMode | null;
+  interests: string[];
+  /** Dietary flags surfaced to adults as content safety notes. */
+  dietary: string[];
+  /** Medical flags surfaced to adults as content safety callouts. */
+  medical: string[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ChildProfilesResponse {
+  profiles: ChildProfile[];
+}
+
+/** Request body for `POST /profiles` (create) and `PATCH /profiles/{id}` (update). */
+export interface ChildProfileInput {
+  /** Required on create; optional on update. */
+  name?: string;
+  avatar?: string | null;
+  age?: number | null;
+  mode?: ExplorerMode | null;
+  interests?: string[];
+  dietary?: string[];
+  medical?: string[];
+}
+
+/** Per-profile state for a trip: which items are done and the active mode. */
+export interface TripProgress {
+  /** The child this progress belongs to; null for an unscoped/household row. */
+  profile_id: string | null;
+  active_mode?: ExplorerMode | null;
+  /** Ids of content items (activities, challenges) marked done. */
+  done_items: string[];
+  updated_at: string;
+}
+
+export interface TripProgressResponse {
+  progress: TripProgress[];
+}
+
+/** Request body for `PATCH /trips/{tripId}/progress`. */
+export interface ProgressUpdateRequest {
+  profile_id: string;
+  active_mode?: ExplorerMode;
+  /** Full replacement of the done set. */
+  done_items?: string[];
+  /** Incremental: add these item ids to the done set. */
+  mark_done?: string[];
+  /** Incremental: remove these item ids from the done set. */
+  mark_undone?: string[];
 }
