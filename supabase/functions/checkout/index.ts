@@ -9,7 +9,7 @@
 import { error, handlePreflight, json } from '../_shared/http.ts';
 import { userContext, UnauthorizedError } from '../_shared/user-client.ts';
 import { optionalEnv } from '../_shared/env.ts';
-import { createCheckoutSession, stripeConfigured } from '../_shared/stripe.ts';
+import { createCheckoutSession, stripeConfigured, stripeLivemode } from '../_shared/stripe.ts';
 
 interface ProductRow {
   price_id: string;
@@ -60,6 +60,7 @@ Deno.serve(async (req) => {
       .from('products')
       .select('price_id, tier, active, kind, extends_months')
       .eq('price_id', priceId)
+      .eq('livemode', stripeLivemode())
       .maybeSingle();
     if (prodErr) throw new Error(prodErr.message);
     const p = product as ProductRow | null;
