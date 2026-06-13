@@ -11,6 +11,7 @@ import * as trips from './routes/trips.ts';
 import * as customers from './routes/customers.ts';
 import * as review from './routes/content-review.ts';
 import * as commerce from './routes/commerce.ts';
+import * as admins from './routes/admins.ts';
 
 // Reduce the request path to the part after `/admin`, then split into segments.
 function adminSegments(url: URL): string[] {
@@ -100,6 +101,13 @@ async function route(
 
     case 'purchases':
       if (!a && method === 'GET') return commerce.listPurchases(req, ctx);
+      break;
+
+    case 'admins':
+      if (!a) {
+        if (method === 'GET') return admins.listAdmins(req, ctx);
+        if (method === 'POST') return admins.setAdminRole(req, ctx);
+      }
       break;
   }
 

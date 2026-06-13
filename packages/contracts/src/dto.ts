@@ -216,6 +216,8 @@ export interface JournalEntry {
   trip_id: string;
   /** Optional child profile this entry is tagged to. */
   profile_id?: string | null;
+  /** The content day this entry is scoped to (TripContent.days[].id, e.g. `d_2`); null = trip-level. */
+  day_id?: string | null;
   body: string;
   /** Short mood label the FE maps to its mood picker. */
   mood?: string | null;
@@ -230,6 +232,8 @@ export interface JournalEntry {
 export interface JournalEntryInput {
   body?: string;
   profile_id?: string;
+  /** The content day this entry is scoped to (e.g. `d_2`). */
+  day_id?: string;
   /** Short mood label. */
   mood?: string;
   /** A 1-5 star rating. */
