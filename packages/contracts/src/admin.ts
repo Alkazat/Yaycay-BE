@@ -33,8 +33,12 @@ export interface AdminSession {
   mfaVerified: boolean;
 }
 
-/** Child profile as surfaced to admin inspection screens. */
-export interface ChildProfile {
+/**
+ * Child profile as surfaced to admin inspection screens. Named `AdminChildProfile`
+ * to leave the canonical `ChildProfile` (the customer surface, `GET /profiles`)
+ * unambiguous - same precedent as `AdminTripSummary`.
+ */
+export interface AdminChildProfile {
   id: string;
   name: string;
   age: number;

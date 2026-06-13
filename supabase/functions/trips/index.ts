@@ -204,6 +204,13 @@ Deno.serve(async (req) => {
       return error('method_not_allowed', 'Use GET or POST.', 405);
     }
 
+    // /trips/:id/progress - per-profile state (done items + active mode).
+    if (seg.length === 2 && seg[1] === 'progress') {
+      if (req.method === 'GET') return await handleProgressGet(client, tripId, url);
+      if (req.method === 'PATCH') return await handleProgressUpdate(client, userId, tripId, req);
+      return error('method_not_allowed', 'Use GET or PATCH.', 405);
+    }
+
     return error('not_found', 'No such route.', 404);
   } catch (err) {
     if (err instanceof UnauthorizedError) {
@@ -425,6 +432,91 @@ async function handleJournalCreate(
     .single();
   if (dbErr) throw new Error(dbErr.message);
   return json(data, 201);
+}
+
+// ----- Progress (per-profile state) ------------------------------------------
+
+const PROGRESS_COLUMNS = 'profile_id, active_mode, done_items, updated_at';
+const EXPLORER_MODES = ['little', 'standard', 'explorer', 'explorer_plus'];
+
+function toProgress(r: Record<string, unknown>): Record<string, unknown> {
+  return {
+    profile_id: (r.profile_id as string | null) ?? null,
+    active_mode: (r.active_mode as string | null) ?? null,
+    done_items: Array.isArray(r.done_items) ? r.done_items : [],
+    updated_at: r.updated_at as string,
+  };
+}
+
+function asStringArray(v: unknown): string[] {
+  return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [];
+}
+
+async function handleProgressGet(client: UserClient, tripId: string, url: URL): Promise<Response> {
+  // Confirm the caller can see the trip (RLS) so an unknown id is a clean 404.
+  const { data: trip } = await client.from('trips').select('id').eq('id', tripId).maybeSingle();
+  if (!trip) throw new NotFoundError();
+
+  let q = client.from('trip_progress').select(PROGRESS_COLUMNS).eq('trip_id', tripId);
+  const profileId = url.searchParams.get('profile_id');
+  if (profileId) q = q.eq('profile_id', profileId);
+  const { data, error: dbErr } = await q;
+  if (dbErr) throw new Error(dbErr.message);
+  return json({ progress: (data ?? []).map((r) => toProgress(r as Record<string, unknown>)) });
+}
+
+async function handleProgressUpdate(
+  client: UserClient,
+  userId: string,
+  tripId: string,
+  req: Request,
+): Promise<Response> {
+  const body = await readJson(req);
+  const profileId = typeof body.profile_id === 'string' ? body.profile_id : null;
+  if (!profileId) throw new ValidationError(['profile_id is required']);
+  if (body.active_mode !== undefined && !EXPLORER_MODES.includes(String(body.active_mode))) {
+    throw new ValidationError(['active_mode must be little|standard|explorer|explorer_plus']);
+  }
+
+  // Caller must own the trip (RLS) before writing progress.
+  const { data: trip } = await client.from('trips').select('id').eq('id', tripId).maybeSingle();
+  if (!trip) throw new NotFoundError();
+
+  // Merge against the existing row so incremental mark_done/mark_undone work.
+  const { data: existing } = await client
+    .from('trip_progress')
+    .select(PROGRESS_COLUMNS)
+    .eq('trip_id', tripId)
+    .eq('profile_id', profileId)
+    .maybeSingle();
+
+  let done = new Set<string>(asStringArray(existing?.done_items));
+  if (Array.isArray(body.done_items)) done = new Set(asStringArray(body.done_items));
+  for (const id of asStringArray(body.mark_done)) done.add(id);
+  for (const id of asStringArray(body.mark_undone)) done.delete(id);
+
+  const activeMode =
+    typeof body.active_mode === 'string'
+      ? body.active_mode
+      : ((existing?.active_mode as string | null | undefined) ?? null);
+
+  const { data, error: dbErr } = await client
+    .from('trip_progress')
+    .upsert(
+      {
+        trip_id: tripId,
+        user_id: userId,
+        profile_id: profileId,
+        active_mode: activeMode,
+        done_items: [...done],
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'trip_id,profile_id' },
+    )
+    .select(PROGRESS_COLUMNS)
+    .single();
+  if (dbErr) throw new Error(dbErr.message);
+  return json(toProgress(data as Record<string, unknown>));
 }
 
 async function tripDestination(client: UserClient, tripId: string): Promise<string> {
