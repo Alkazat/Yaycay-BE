@@ -410,7 +410,7 @@ async function handleIngest(
   }
 }
 
-const JOURNAL_COLUMNS = 'id, trip_id, profile_id, body, mood, stars, media_ref, created_at';
+const JOURNAL_COLUMNS = 'id, trip_id, profile_id, body, mood, stars, day_id, media_ref, created_at';
 
 async function handleJournalList(client: UserClient, tripId: string, url: URL): Promise<Response> {
   let q = client
@@ -438,6 +438,7 @@ async function handleJournalCreate(
   const body = await readJson(req);
   const text = typeof body.body === 'string' ? body.body : '';
   const profileId = typeof body.profile_id === 'string' ? body.profile_id : null;
+  const dayId = typeof body.day_id === 'string' ? body.day_id : null;
   const mood = typeof body.mood === 'string' ? body.mood : null;
   const mediaRef = Array.isArray(body.media_ref)
     ? (body.media_ref as unknown[]).filter((x): x is string => typeof x === 'string')
@@ -461,6 +462,7 @@ async function handleJournalCreate(
       trip_id: tripId,
       user_id: userId,
       profile_id: profileId,
+      day_id: dayId,
       body: text,
       mood,
       stars,

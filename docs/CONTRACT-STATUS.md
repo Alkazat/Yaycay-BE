@@ -17,7 +17,7 @@ GitHub Packages registry for the `@alkazat` scope:
 @alkazat:registry=https://npm.pkg.github.com
 ```
 
-Current version: **`0.13.0`**. Pin `@alkazat/contracts@^0.13.0` (the admin surface
+Current version: **`0.14.0`**. Pin `@alkazat/contracts@^0.14.0` (the admin surface
 that earlier handoffs called `^0.2.0` ships within this range).
 
 GitHub Packages requires auth to install **even public packages**. Each consumer
@@ -115,7 +115,7 @@ server-resolved (not a claim). Audit sink is `public.admin_audit_log`
 | `PATCH /trips/:id/content` | `TripContent` (schema-validated) | ✅ served |
 | `POST /trips/:id/plan/chat` | SSE `PlanChatEvent` stream (tier=ours) | ✅ served (v0.3) |
 | `POST /trips/:id/ingest` | `IngestResponse` (paid: byo/ours) | ✅ served (v0.3) |
-| `GET/POST /trips/:id/journal` | `JournalEntry` incl. `mood` + 1-5 `stars` (POST paid) | ✅ served (v0.6, mood/stars v0.10) |
+| `GET/POST /trips/:id/journal` | `JournalEntry` incl. `mood`, 1-5 `stars`, `day_id` (POST paid) | ✅ served (v0.6; mood/stars v0.10; day_id v0.14) |
 | `POST /media/sign-upload` | `SignUploadResponse` (signed Storage URL, paid) | ✅ served (v0.6) |
 | `POST /connectors/byo-ai` · `GET /connectors` · `POST /mcp` | BYO-AI MCP (tier=byo) | ✅ served (v0.6) |
 | `GET /profiles` · `POST /profiles` · `PATCH/DELETE /profiles/:id` | `ChildProfile` (CRUD) | ✅ served (v0.9) |
@@ -127,6 +127,7 @@ server-resolved (not a claim). Audit sink is `public.admin_audit_log`
 | `GET /admin/products` | `{ items: ProductSummary[] }` (all, incl. inactive) | ✅ served (v0.8) |
 | `POST /admin/products` | `ProductSummary` (add a catalogue product) | ✅ served (v0.8) |
 | `PATCH /admin/products/:priceId` | `ProductSummary` (edit price/kind/entitlement/active) | ✅ served (v0.8) |
+| `GET /admin/admins` · `POST /admin/admins` | `AdminAccount` (list admins; set role by email — 404 if no account yet) | ✅ served (v0.14) |
 | `POST /checkout/session` | `CheckoutSessionResponse` (Stripe Checkout URL) | ✅ served (v0.5) |
 | `POST /webhooks/stripe` | `{ received }` (tier flip **or** keep-token retention extension) | ✅ served (v0.5/v0.8) |
 
