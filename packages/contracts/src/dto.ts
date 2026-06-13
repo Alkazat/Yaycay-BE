@@ -396,39 +396,46 @@ export interface StarClaimResponse {
   balance: number;
 }
 
+/**
+ * Packing is a per-trip document: lists (a `family` list + one per child,
+ * addressed by `id`) contain sections, which contain items. BE seeds the
+ * list/section skeleton on first touch; the FE adds items into it. Every read
+ * and every mutation returns the whole collection.
+ */
 export interface PackingItem {
   id: string;
-  /** The child this item belongs to, or null when shared. */
-  profile_id?: string | null;
   label: string;
-  category?: string | null;
-  packed: boolean;
-  position?: number | null;
-  created_at: string;
-  updated_at: string;
+  qty?: number;
+  checked: boolean;
 }
 
-export interface PackingListResponse {
+export interface PackingSection {
+  id: string;
+  label: string;
   items: PackingItem[];
 }
 
-/** Request body for `POST /trips/{tripId}/packing`. */
-export interface PackingItemInput {
+export interface PackingList {
+  /** A child profile id, or the literal `"family"`. */
+  id: string;
   label: string;
-  profile_id?: string | null;
-  category?: string | null;
-  packed?: boolean;
-  position?: number | null;
+  sections: PackingSection[];
 }
 
-/** Request body for `PATCH /trips/{tripId}/packing/{itemId}` (all optional). */
-export interface PackingItemUpdate {
-  label?: string;
-  profile_id?: string | null;
-  category?: string | null;
-  packed?: boolean;
-  position?: number | null;
+/** Response for `GET /trips/{tripId}/packing` and every `PATCH`. */
+export interface PackingResponse {
+  lists: PackingList[];
 }
+
+/**
+ * Request body for `PATCH /trips/{tripId}/packing`. A discriminated union on
+ * `action`; the response is always the full `PackingResponse`.
+ */
+export type PackingPatchRequest =
+  | { action: 'tick'; list_id: string; item_id: string; checked: boolean }
+  | { action: 'add'; list_id: string; section_id: string; label: string; qty?: number }
+  | { action: 'delete'; list_id: string; item_id: string }
+  | { action: 'reset' };
 
 /** A persisted grown-ups checklist tick, keyed by the FE's item id. */
 export interface ChecklistItem {

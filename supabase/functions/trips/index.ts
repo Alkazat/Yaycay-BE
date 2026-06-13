@@ -221,21 +221,13 @@ Deno.serve(async (req) => {
       return error('method_not_allowed', 'Use GET /stars or POST /stars/claim.', 405);
     }
 
-    // /trips/:id/packing  ·  /…/:itemId  ·  /…/reset - packing list (tick + CRUD).
-    if (seg[1] === 'packing') {
-      if (seg.length === 2) {
-        if (req.method === 'GET') return await handlePackingList(client, tripId);
-        if (req.method === 'POST') return await handlePackingCreate(client, userId, tripId, req);
-        return error('method_not_allowed', 'Use GET or POST.', 405);
-      }
-      if (seg.length === 3 && seg[2] === 'reset' && req.method === 'POST') {
-        return await handlePackingReset(client, tripId);
-      }
-      if (seg.length === 3) {
-        if (req.method === 'PATCH') return await handlePackingUpdate(client, tripId, seg[2], req);
-        if (req.method === 'DELETE') return await handlePackingDelete(client, tripId, seg[2]);
-        return error('method_not_allowed', 'Use PATCH or DELETE.', 405);
-      }
+    // /trips/:id/packing - one collection endpoint. PATCH carries an action
+    // (tick|add|delete|reset) and every mutation returns the whole { lists } so
+    // the FE drops it straight into state - no client merge, no refetch.
+    if (seg.length === 2 && seg[1] === 'packing') {
+      if (req.method === 'GET') return await handlePackingGet(client, tripId);
+      if (req.method === 'PATCH') return await handlePackingPatch(client, userId, tripId, req);
+      return error('method_not_allowed', 'Use GET or PATCH.', 405);
     }
 
     // /trips/:id/grownups/checklist - persisted grown-ups checklist ticks.
@@ -651,23 +643,83 @@ async function handleStarsClaim(
   return json({ claimed, entry, balance }, claimed ? 201 : 200);
 }
 
-// ----- Packing list ----------------------------------------------------------
+// ----- Packing (per-trip document) -------------------------------------------
+// One collection endpoint. GET returns { lists }; PATCH applies an action and
+// returns the whole recomputed { lists }. Lists/sections are seeded by BE on
+// first touch (a Family list + one per child profile, each with default
+// sections); the FE adds items into them.
 
-const PACKING_COLUMNS = 'id, profile_id, label, category, packed, position, created_at, updated_at';
-
-async function handlePackingList(client: UserClient, tripId: string): Promise<Response> {
-  await ensureTripVisible(client, tripId);
-  const { data, error: dbErr } = await client
-    .from('packing_items')
-    .select(PACKING_COLUMNS)
-    .eq('trip_id', tripId)
-    .order('position', { ascending: true, nullsFirst: false })
-    .order('created_at', { ascending: true });
-  if (dbErr) throw new Error(dbErr.message);
-  return json({ items: data ?? [] });
+interface PackItem {
+  id: string;
+  label: string;
+  qty?: number;
+  checked: boolean;
+}
+interface PackSection {
+  id: string;
+  label: string;
+  items: PackItem[];
+}
+interface PackList {
+  id: string;
+  label: string;
+  sections: PackSection[];
 }
 
-async function handlePackingCreate(
+const DEFAULT_SECTIONS: Array<{ id: string; label: string }> = [
+  { id: 'clothes', label: 'Clothes' },
+  { id: 'toiletries', label: 'Toiletries' },
+  { id: 'essentials', label: 'Essentials' },
+  { id: 'activities', label: 'Activities' },
+];
+
+function seedSections(): PackSection[] {
+  return DEFAULT_SECTIONS.map((s) => ({ id: s.id, label: s.label, items: [] }));
+}
+
+// Default lists: a Family list plus one per child profile (id = profile id).
+async function seedLists(client: UserClient): Promise<PackList[]> {
+  const { data } = await client
+    .from('child_profiles')
+    .select('id, name')
+    .order('created_at', { ascending: true });
+  const lists: PackList[] = [{ id: 'family', label: 'Family', sections: seedSections() }];
+  for (const p of (data ?? []) as Array<{ id: string; name: string }>) {
+    lists.push({ id: p.id, label: p.name, sections: seedSections() });
+  }
+  return lists;
+}
+
+// Current lists for a trip: the stored document, else a freshly seeded skeleton
+// (deterministic ids, so a later PATCH that persists matches what GET returned).
+async function computeLists(client: UserClient, tripId: string): Promise<PackList[]> {
+  const { data, error: dbErr } = await client
+    .from('trip_packing')
+    .select('lists')
+    .eq('trip_id', tripId)
+    .maybeSingle();
+  if (dbErr) throw new Error(dbErr.message);
+  const existing = data?.lists as PackList[] | undefined;
+  if (existing && existing.length > 0) return existing;
+  return await seedLists(client);
+}
+
+function findItem(lists: PackList[], listId: string, itemId: string): PackItem | undefined {
+  const list = lists.find((l) => l.id === listId);
+  if (!list) return undefined;
+  for (const s of list.sections) {
+    const it = s.items.find((i) => i.id === itemId);
+    if (it) return it;
+  }
+  return undefined;
+}
+
+async function handlePackingGet(client: UserClient, tripId: string): Promise<Response> {
+  await ensureTripVisible(client, tripId);
+  return json({ lists: await computeLists(client, tripId) });
+}
+
+async function handlePackingPatch(
   client: UserClient,
   userId: string,
   tripId: string,
@@ -675,89 +727,70 @@ async function handlePackingCreate(
 ): Promise<Response> {
   await ensureTripVisible(client, tripId);
   const body = await readJson(req);
-  const label = typeof body.label === 'string' ? body.label.trim() : '';
-  if (!label) throw new ValidationError(['label is required']);
+  const action = typeof body.action === 'string' ? body.action : '';
+  const lists = await computeLists(client, tripId);
 
-  const { data, error: dbErr } = await client
-    .from('packing_items')
-    .insert({
-      trip_id: tripId,
-      user_id: userId,
-      profile_id: typeof body.profile_id === 'string' ? body.profile_id : null,
-      label,
-      category: typeof body.category === 'string' ? body.category : null,
-      packed: body.packed === true,
-      position: Number.isInteger(body.position) ? (body.position as number) : null,
-    })
-    .select(PACKING_COLUMNS)
-    .single();
-  if (dbErr) throw new Error(dbErr.message);
-  return json(data, 201);
-}
-
-async function handlePackingUpdate(
-  client: UserClient,
-  tripId: string,
-  itemId: string,
-  req: Request,
-): Promise<Response> {
-  const body = await readJson(req);
-  const patch: Record<string, unknown> = {};
-  if (body.label !== undefined) {
-    if (typeof body.label !== 'string' || body.label.trim().length === 0) {
-      throw new ValidationError(['label must be a non-empty string']);
+  switch (action) {
+    case 'tick': {
+      const listId = typeof body.list_id === 'string' ? body.list_id : '';
+      const itemId = typeof body.item_id === 'string' ? body.item_id : '';
+      if (!listId || !itemId) throw new ValidationError(['list_id and item_id are required']);
+      const item = findItem(lists, listId, itemId);
+      if (!item) throw new NotFoundError();
+      item.checked = body.checked === true;
+      break;
     }
-    patch.label = body.label.trim();
+    case 'add': {
+      const listId = typeof body.list_id === 'string' ? body.list_id : '';
+      const sectionId = typeof body.section_id === 'string' ? body.section_id : '';
+      const label = typeof body.label === 'string' ? body.label.trim() : '';
+      if (!listId || !sectionId) throw new ValidationError(['list_id and section_id are required']);
+      if (!label) throw new ValidationError(['label is required']);
+      const section = lists.find((l) => l.id === listId)?.sections.find((s) => s.id === sectionId);
+      if (!section) throw new NotFoundError();
+      const item: PackItem = { id: crypto.randomUUID(), label, checked: false };
+      if (body.qty !== undefined && body.qty !== null) {
+        const n = Number(body.qty);
+        if (!Number.isInteger(n) || n < 1)
+          throw new ValidationError(['qty must be a positive integer']);
+        item.qty = n;
+      }
+      section.items.push(item);
+      break;
+    }
+    case 'delete': {
+      const listId = typeof body.list_id === 'string' ? body.list_id : '';
+      const itemId = typeof body.item_id === 'string' ? body.item_id : '';
+      if (!listId || !itemId) throw new ValidationError(['list_id and item_id are required']);
+      const list = lists.find((l) => l.id === listId);
+      if (!list) throw new NotFoundError();
+      let removed = false;
+      for (const s of list.sections) {
+        const before = s.items.length;
+        s.items = s.items.filter((it) => it.id !== itemId);
+        if (s.items.length !== before) removed = true;
+      }
+      if (!removed) throw new NotFoundError();
+      break;
+    }
+    case 'reset': {
+      // Trip-wide: clear every tick across all lists.
+      for (const l of lists)
+        for (const s of l.sections) for (const it of s.items) it.checked = false;
+      break;
+    }
+    default:
+      throw new ValidationError(['action must be tick|add|delete|reset']);
   }
-  if (body.category !== undefined) {
-    patch.category = typeof body.category === 'string' ? body.category : null;
-  }
-  if (body.packed !== undefined) patch.packed = body.packed === true;
-  if (body.position !== undefined) {
-    patch.position = Number.isInteger(body.position) ? (body.position as number) : null;
-  }
-  if (body.profile_id !== undefined) {
-    patch.profile_id = typeof body.profile_id === 'string' ? body.profile_id : null;
-  }
-  if (Object.keys(patch).length === 0) throw new ValidationError(['No updatable fields provided.']);
 
-  const { data, error: dbErr } = await client
-    .from('packing_items')
-    .update(patch)
-    .eq('id', itemId)
-    .eq('trip_id', tripId)
-    .select(PACKING_COLUMNS)
-    .maybeSingle();
-  if (dbErr) throw new Error(dbErr.message);
-  if (!data) throw new NotFoundError();
-  return json(data);
-}
-
-async function handlePackingDelete(
-  client: UserClient,
-  tripId: string,
-  itemId: string,
-): Promise<Response> {
-  const { data, error: dbErr } = await client
-    .from('packing_items')
-    .delete()
-    .eq('id', itemId)
-    .eq('trip_id', tripId)
-    .select('id')
-    .maybeSingle();
-  if (dbErr) throw new Error(dbErr.message);
-  if (!data) throw new NotFoundError();
-  return json({ deleted: true });
-}
-
-async function handlePackingReset(client: UserClient, tripId: string): Promise<Response> {
-  await ensureTripVisible(client, tripId);
   const { error: dbErr } = await client
-    .from('packing_items')
-    .update({ packed: false })
-    .eq('trip_id', tripId);
+    .from('trip_packing')
+    .upsert(
+      { trip_id: tripId, user_id: userId, lists, updated_at: new Date().toISOString() },
+      { onConflict: 'trip_id' },
+    );
   if (dbErr) throw new Error(dbErr.message);
-  return handlePackingList(client, tripId);
+  return json({ lists });
 }
 
 // ----- Grown-ups checklist ---------------------------------------------------
