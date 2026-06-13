@@ -217,6 +217,10 @@ export interface JournalEntry {
   /** Optional child profile this entry is tagged to. */
   profile_id?: string | null;
   body: string;
+  /** Short mood label the FE maps to its mood picker. */
+  mood?: string | null;
+  /** A 1-5 star rating of the day/moment. */
+  stars?: number | null;
   /** media_ref ids from `/media/sign-upload`, resolved to signed URLs on read. */
   media_ref: string[];
   created_at: string;
@@ -226,6 +230,10 @@ export interface JournalEntry {
 export interface JournalEntryInput {
   body?: string;
   profile_id?: string;
+  /** Short mood label. */
+  mood?: string;
+  /** A 1-5 star rating. */
+  stars?: number;
   media_ref?: string[];
 }
 
