@@ -175,6 +175,12 @@ export interface ProductSummary {
   extendsMonths?: number | null;
   /** Inactive products are hidden from the customer catalogue but kept for history. */
   active: boolean;
+  /**
+   * Stripe mode: true = live, false = test. The catalogue is already scoped to the
+   * deployment's mode, so all rows in one response share a value; surfaced so Admin
+   * can show a Live/Test badge as a safety net.
+   */
+  livemode?: boolean;
 }
 
 /** Request body for `POST /admin/products` (admin). */

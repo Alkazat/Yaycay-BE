@@ -10,7 +10,7 @@ import type { AdminContext } from '../lib/auth.ts';
 
 const TIERS = ['byo', 'ours'];
 const KINDS = ['tier', 'keep'];
-const PRODUCT_COLUMNS = 'price_id, name, amount_usd, tier, kind, extends_months, active';
+const PRODUCT_COLUMNS = 'price_id, name, amount_usd, tier, kind, extends_months, active, livemode';
 
 // The deployment's Stripe mode (live on prod, test on staging). The products
 // table holds both sets of prices (the seed loaded both); scope the catalogue to
@@ -28,6 +28,7 @@ interface ProductRow {
   kind: string | null;
   extends_months: number | null;
   active: boolean;
+  livemode: boolean | null;
 }
 
 function toProductDto(p: ProductRow) {
@@ -39,6 +40,7 @@ function toProductDto(p: ProductRow) {
     kind: (p.kind ?? 'tier') as 'tier' | 'keep',
     extendsMonths: p.extends_months ?? null,
     active: p.active,
+    livemode: p.livemode ?? undefined,
   };
 }
 
