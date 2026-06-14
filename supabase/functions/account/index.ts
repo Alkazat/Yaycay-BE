@@ -7,6 +7,12 @@
 // schema is revoked from the authenticated client. Email and tier are
 // server-owned; the only consumer-mutable field is the secondary (recovery)
 // email. `tier` is the account's best entitlement, derived from purchases.
+//
+// Routes (this function owns all /account/* paths):
+//   GET    /account                    read the account
+//   PATCH  /account                    update the secondary email
+//   POST   /account/deletion-request   request data deletion (stamps a time)
+//   DELETE /account/deletion-request   cancel a pending deletion request
 
 import { error, handlePreflight, json } from '../_shared/http.ts';
 import { userContext, UnauthorizedError } from '../_shared/user-client.ts';
@@ -19,6 +25,14 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 type Tier = 'free' | 'byo' | 'ours';
 const TIER_RANK: Record<string, number> = { free: 0, byo: 1, ours: 2 };
+
+// The part of the path after `/account`, trimmed of slashes ('' for the root).
+function subPath(url: URL): string {
+  const marker = '/account';
+  const i = url.pathname.indexOf(marker);
+  const rest = i === -1 ? '' : url.pathname.slice(i + marker.length);
+  return rest.replace(/^\/+|\/+$/g, '');
+}
 
 interface AccountRow {
   email: string;
@@ -53,6 +67,96 @@ async function deriveTier(svc: ReturnType<typeof serviceClient>, userId: string)
   return best;
 }
 
+type Svc = ReturnType<typeof serviceClient>;
+
+// Read the account row, returning a 404 Response when it is missing.
+async function loadAccount(svc: Svc, userId: string): Promise<AccountRow | Response> {
+  const { data, error: dbErr } = await svc
+    .schema('identity')
+    .from('accounts')
+    .select(ACCOUNT_COLUMNS)
+    .eq('user_id', userId)
+    .maybeSingle();
+  if (dbErr) throw new Error(dbErr.message);
+  if (!data) return error('not_found', 'Account not found.', 404);
+  return data as AccountRow;
+}
+
+async function respondWithAccount(svc: Svc, userId: string, row: AccountRow): Promise<Response> {
+  const tier = await deriveTier(svc, userId);
+  return json(toAccount(row, tier), 200);
+}
+
+async function handleGet(svc: Svc, userId: string): Promise<Response> {
+  const row = await loadAccount(svc, userId);
+  if (row instanceof Response) return row;
+  return respondWithAccount(svc, userId, row);
+}
+
+async function handlePatch(svc: Svc, userId: string, req: Request): Promise<Response> {
+  let body: Record<string, unknown>;
+  try {
+    body = (await req.json()) as Record<string, unknown>;
+  } catch {
+    return error('validation_error', 'Request body must be JSON.', 422);
+  }
+
+  const patch: Record<string, unknown> = {};
+  if (body.secondary_email !== undefined) {
+    const v = body.secondary_email;
+    if (v === null || v === '') {
+      patch.recovery_email = null;
+    } else if (typeof v === 'string' && EMAIL_RE.test(v.trim())) {
+      patch.recovery_email = v.trim().toLowerCase();
+    } else {
+      return error('validation_error', 'secondary_email must be a valid email or null.', 422, [
+        'secondary_email',
+      ]);
+    }
+  }
+
+  if (Object.keys(patch).length === 0) {
+    return error('validation_error', 'No updatable fields supplied.', 422, ['secondary_email']);
+  }
+
+  const { data, error: dbErr } = await svc
+    .schema('identity')
+    .from('accounts')
+    .update(patch)
+    .eq('user_id', userId)
+    .select(ACCOUNT_COLUMNS)
+    .maybeSingle();
+  if (dbErr) throw new Error(dbErr.message);
+  if (!data) return error('not_found', 'Account not found.', 404);
+  return respondWithAccount(svc, userId, data as AccountRow);
+}
+
+// POST stamps deletion_requested_at (preserving the earliest request); DELETE
+// clears it. Both return the account so the FE can reflect the new state.
+async function handleDeletionRequest(svc: Svc, userId: string, cancel: boolean): Promise<Response> {
+  const existing = await loadAccount(svc, userId);
+  if (existing instanceof Response) return existing;
+
+  let value: string | null;
+  if (cancel) {
+    value = null;
+  } else {
+    // Idempotent: keep the original request time if one is already set.
+    value = existing.deletion_requested_at ?? new Date().toISOString();
+  }
+
+  const { data, error: dbErr } = await svc
+    .schema('identity')
+    .from('accounts')
+    .update({ deletion_requested_at: value })
+    .eq('user_id', userId)
+    .select(ACCOUNT_COLUMNS)
+    .maybeSingle();
+  if (dbErr) throw new Error(dbErr.message);
+  if (!data) return error('not_found', 'Account not found.', 404);
+  return respondWithAccount(svc, userId, data as AccountRow);
+}
+
 Deno.serve(async (req) => {
   const preflight = handlePreflight(req);
   if (preflight) return preflight;
@@ -60,60 +164,21 @@ Deno.serve(async (req) => {
   try {
     const { userId } = await userContext(req);
     const svc = serviceClient();
+    const sub = subPath(new URL(req.url));
 
-    if (req.method === 'GET') {
-      const { data, error: dbErr } = await svc
-        .schema('identity')
-        .from('accounts')
-        .select(ACCOUNT_COLUMNS)
-        .eq('user_id', userId)
-        .maybeSingle();
-      if (dbErr) throw new Error(dbErr.message);
-      if (!data) return error('not_found', 'Account not found.', 404);
-      const tier = await deriveTier(svc, userId);
-      return json(toAccount(data as AccountRow, tier), 200);
+    if (sub === '') {
+      if (req.method === 'GET') return await handleGet(svc, userId);
+      if (req.method === 'PATCH') return await handlePatch(svc, userId, req);
+      return error('method_not_allowed', 'Use GET or PATCH.', 405);
     }
 
-    if (req.method === 'PATCH') {
-      let body: Record<string, unknown>;
-      try {
-        body = (await req.json()) as Record<string, unknown>;
-      } catch {
-        return error('validation_error', 'Request body must be JSON.', 422);
-      }
-
-      const patch: Record<string, unknown> = {};
-      if (body.secondary_email !== undefined) {
-        const v = body.secondary_email;
-        if (v === null || v === '') {
-          patch.recovery_email = null;
-        } else if (typeof v === 'string' && EMAIL_RE.test(v.trim())) {
-          patch.recovery_email = v.trim().toLowerCase();
-        } else {
-          return error('validation_error', 'secondary_email must be a valid email or null.', 422, [
-            'secondary_email',
-          ]);
-        }
-      }
-
-      if (Object.keys(patch).length === 0) {
-        return error('validation_error', 'No updatable fields supplied.', 422, ['secondary_email']);
-      }
-
-      const { data, error: dbErr } = await svc
-        .schema('identity')
-        .from('accounts')
-        .update(patch)
-        .eq('user_id', userId)
-        .select(ACCOUNT_COLUMNS)
-        .maybeSingle();
-      if (dbErr) throw new Error(dbErr.message);
-      if (!data) return error('not_found', 'Account not found.', 404);
-      const tier = await deriveTier(svc, userId);
-      return json(toAccount(data as AccountRow, tier), 200);
+    if (sub === 'deletion-request') {
+      if (req.method === 'POST') return await handleDeletionRequest(svc, userId, false);
+      if (req.method === 'DELETE') return await handleDeletionRequest(svc, userId, true);
+      return error('method_not_allowed', 'Use POST or DELETE.', 405);
     }
 
-    return error('method_not_allowed', 'Use GET or PATCH.', 405);
+    return error('not_found', 'Unknown account route.', 404);
   } catch (err) {
     if (err instanceof UnauthorizedError) return error('unauthorized', err.message, 401);
     console.error('account error', err);
