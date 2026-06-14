@@ -197,6 +197,8 @@ export interface CheckoutSessionRequest {
   price_id: string;
   /** Optional trip the purchased tier applies to. */
   trip_id?: string;
+  /** Optional affiliate discount/attribution code (from the /go/<slug> funnel). */
+  code?: string;
   /** Redirect targets; fall back to server defaults when omitted. */
   success_url?: string;
   cancel_url?: string;

@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Yaycay API
-  version: 0.15.0
+  version: 0.16.0
   description: >
     Yaycay back-end HTTP API. The v0.1 surface (Phase 0) is the free-demo
     generator, signup/lead capture, the 2FA verify step, and trip + trip-content
@@ -1294,6 +1294,160 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AdminAccount'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/ProblemNotFound'
+        '422':
+          $ref: '#/components/responses/ProblemUnprocessable'
+
+  /admin/affiliates:
+    get:
+      operationId: listAffiliates
+      tags: [admin]
+      summary: List affiliates.
+      security:
+        - adminAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: A page of affiliates.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AffiliatePage' }
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      operationId: createAffiliate
+      tags: [admin]
+      summary: Create an affiliate and its Stripe coupon + promotion code.
+      security:
+        - adminAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateAffiliateInput' }
+      responses:
+        '201':
+          description: Created.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Affiliate' }
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          description: Code or landing slug already in use.
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+        '422':
+          $ref: '#/components/responses/ProblemUnprocessable'
+
+  /admin/affiliates/{code}:
+    parameters:
+      - name: code
+        in: path
+        required: true
+        schema: { type: string }
+    get:
+      operationId: getAffiliate
+      tags: [admin]
+      summary: Affiliate detail.
+      security:
+        - adminAuth: []
+      responses:
+        '200':
+          description: The affiliate.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Affiliate' }
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/ProblemNotFound'
+    patch:
+      operationId: setAffiliateStatus
+      tags: [admin]
+      summary: Pause or reactivate (toggles the Stripe promotion code).
+      security:
+        - adminAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [status]
+              properties:
+                status: { $ref: '#/components/schemas/AffiliateStatus' }
+      responses:
+        '200':
+          description: The updated affiliate.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Affiliate' }
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/ProblemNotFound'
+        '422':
+          $ref: '#/components/responses/ProblemUnprocessable'
+
+  /admin/affiliates/{code}/redemptions:
+    parameters:
+      - name: code
+        in: path
+        required: true
+        schema: { type: string }
+      - $ref: '#/components/parameters/Cursor'
+      - $ref: '#/components/parameters/Limit'
+    get:
+      operationId: listAffiliateRedemptions
+      tags: [admin]
+      summary: Purchases attributed to this code.
+      security:
+        - adminAuth: []
+      responses:
+        '200':
+          description: A page of redemptions.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AffiliateRedemptionPage' }
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/affiliates/{code}/report:
+    parameters:
+      - name: code
+        in: path
+        required: true
+        schema: { type: string }
+    post:
+      operationId: sendAffiliateReport
+      tags: [admin]
+      summary: Render and send the monthly commission report (Brevo).
+      security:
+        - adminAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AffiliateReportRequest' }
+      responses:
+        '200':
+          description: Whether the report email was sent.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [sent]
+                properties:
+                  sent: { type: boolean }
         '403':
           $ref: '#/components/responses/Forbidden'
         '404':
@@ -3152,6 +3306,9 @@ components:
         trip_id:
           type: string
           description: Optional trip the purchased tier applies to.
+        code:
+          type: string
+          description: Optional affiliate discount/attribution code (from /go/<slug>).
         success_url:
           type: string
         cancel_url:
@@ -3181,7 +3338,95 @@ components:
             - { $ref: '#/components/schemas/Tier' }
             - { type: 'null' }
         amountUsd: { type: number }
+        discountCode: { type: [string, 'null'] }
+        discountUsd: { type: [number, 'null'] }
         createdAt: { type: string, format: date-time }
+
+    Affiliate:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          id,
+          name,
+          email,
+          handle,
+          code,
+          discountPercent,
+          commissionPercent,
+          landingSlug,
+          status,
+          createdAt,
+        ]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        email: { type: string, format: email }
+        handle: { type: string }
+        code: { type: string }
+        discountPercent: { type: integer }
+        commissionPercent: { type: integer }
+        landingSlug: { type: string }
+        status: { $ref: '#/components/schemas/AffiliateStatus' }
+        createdAt: { type: string, format: date-time }
+
+    AffiliateStatus:
+      type: string
+      enum: [active, paused]
+
+    CreateAffiliateInput:
+      type: object
+      additionalProperties: false
+      required: [name, email, handle, discountPercent, commissionPercent]
+      properties:
+        name: { type: string }
+        email: { type: string, format: email }
+        handle: { type: string }
+        discountPercent: { type: integer, minimum: 0, maximum: 100 }
+        commissionPercent: { type: integer, minimum: 0, maximum: 100 }
+        code: { type: string, description: Hint; BE owns uniqueness (409 on collision). }
+        landingSlug: { type: string, description: Hint; BE owns uniqueness. }
+
+    AffiliateRedemption:
+      type: object
+      additionalProperties: false
+      required: [purchaseId, ownerEmail, priceId, grossUsd, discountUsd, netUsd, createdAt]
+      properties:
+        purchaseId: { type: string }
+        ownerEmail: { type: string }
+        priceId: { type: string }
+        grossUsd: { type: number }
+        discountUsd: { type: number }
+        netUsd: { type: number }
+        createdAt: { type: string, format: date-time }
+
+    AffiliatePage:
+      type: object
+      additionalProperties: false
+      required: [items, nextCursor]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/Affiliate' }
+        nextCursor: { type: [string, 'null'] }
+
+    AffiliateRedemptionPage:
+      type: object
+      additionalProperties: false
+      required: [items, nextCursor]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/AffiliateRedemption' }
+        nextCursor: { type: [string, 'null'] }
+
+    AffiliateReportRequest:
+      type: object
+      additionalProperties: false
+      required: [periodStart, periodEnd]
+      properties:
+        periodStart: { type: string, format: date }
+        periodEnd: { type: string, format: date }
 
     ContentReviewItem:
       type: object

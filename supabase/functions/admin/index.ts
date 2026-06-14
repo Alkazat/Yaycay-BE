@@ -12,6 +12,7 @@ import * as customers from './routes/customers.ts';
 import * as review from './routes/content-review.ts';
 import * as commerce from './routes/commerce.ts';
 import * as admins from './routes/admins.ts';
+import * as affiliates from './routes/affiliates.ts';
 
 // Reduce the request path to the part after `/admin`, then split into segments.
 function adminSegments(url: URL): string[] {
@@ -107,6 +108,20 @@ async function route(
       if (!a) {
         if (method === 'GET') return admins.listAdmins(req, ctx);
         if (method === 'POST') return admins.setAdminRole(req, ctx);
+      }
+      break;
+
+    case 'affiliates':
+      if (!a) {
+        if (method === 'GET') return affiliates.listAffiliates(req, ctx);
+        if (method === 'POST') return affiliates.createAffiliate(req, ctx);
+      } else if (!b) {
+        if (method === 'GET') return affiliates.getAffiliate(req, ctx, a);
+        if (method === 'PATCH') return affiliates.setAffiliateStatus(req, ctx, a);
+      } else if (b === 'redemptions' && method === 'GET') {
+        return affiliates.listRedemptions(req, ctx, a);
+      } else if (b === 'report' && method === 'POST') {
+        return affiliates.sendAffiliateReport(req, ctx, a);
       }
       break;
   }

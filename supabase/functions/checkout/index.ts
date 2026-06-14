@@ -10,6 +10,7 @@ import { error, handlePreflight, json } from '../_shared/http.ts';
 import { userContext, UnauthorizedError } from '../_shared/user-client.ts';
 import { optionalEnv } from '../_shared/env.ts';
 import { createCheckoutSession, stripeConfigured, stripeLivemode } from '../_shared/stripe.ts';
+import { serviceClient } from '../_shared/service-client.ts';
 
 interface ProductRow {
   price_id: string;
@@ -89,12 +90,32 @@ Deno.serve(async (req) => {
     if (p.kind === 'tier' && p.tier) metadata.tier = p.tier;
     if (p.kind === 'keep' && p.extends_months) metadata.extends_months = String(p.extends_months);
 
+    // Optional affiliate code (from the Website /go/<slug> funnel). Resolve the
+    // affiliate's Stripe promotion code via the service role (affiliates are
+    // admin-RLS, not readable by the caller); apply it and tag the session so the
+    // webhook can attribute the redemption. An unknown/inactive code is ignored.
+    let promotionCode: string | undefined;
+    const code = typeof body.code === 'string' ? body.code.trim().toUpperCase() : '';
+    if (code) {
+      const { data: aff } = await serviceClient()
+        .from('affiliates')
+        .select('code, stripe_promotion_code_id, status')
+        .eq('code', code)
+        .eq('status', 'active')
+        .maybeSingle();
+      if (aff?.stripe_promotion_code_id) {
+        promotionCode = aff.stripe_promotion_code_id as string;
+        metadata.discount_code = code;
+      }
+    }
+
     const session = await createCheckoutSession(optionalEnv('STRIPE_SECRET_KEY')!, {
       priceId,
       successUrl,
       cancelUrl,
       clientReferenceId: userId,
       metadata,
+      promotionCode,
     });
 
     return json({ url: session.url, session_id: session.id }, 200);
