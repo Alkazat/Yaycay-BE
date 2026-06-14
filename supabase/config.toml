@@ -72,6 +72,10 @@ verify_jwt = true
 [functions.profiles]
 verify_jwt = true
 
+# The owner's own account row (read + recovery-email update); JWT-verified.
+[functions.account]
+verify_jwt = true
+
 # The MCP endpoint authenticates with a connector token, not a Supabase JWT, so
 # the gateway must not require one; the handler verifies the token signature.
 [functions.mcp]
