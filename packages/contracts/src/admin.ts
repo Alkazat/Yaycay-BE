@@ -237,7 +237,73 @@ export interface PurchaseSummary {
   priceId: string;
   tier: TripTier | null;
   amountUsd: number;
+  /** The affiliate code applied at checkout, if any. */
+  discountCode?: string | null;
+  /** The discount the code applied, in USD. */
+  discountUsd?: number | null;
   createdAt: string;
+}
+
+// ===== Affiliate / influencer program (v0.16) ==============================
+
+export type AffiliateStatus = 'active' | 'paused';
+
+/** An influencer in the affiliate program. */
+export interface Affiliate {
+  id: string;
+  name: string;
+  email: string;
+  /** Social handle, e.g. "@sunnytravels". */
+  handle: string;
+  /** Discount + attribution code, e.g. "SUNNY15". */
+  code: string;
+  discountPercent: number;
+  commissionPercent: number;
+  /** Website /go/<slug>. */
+  landingSlug: string;
+  status: AffiliateStatus;
+  createdAt: string;
+}
+
+/** Request body for `POST /admin/affiliates`. `code`/`landingSlug` are hints; BE owns uniqueness. */
+export interface CreateAffiliateInput {
+  name: string;
+  email: string;
+  handle: string;
+  discountPercent: number;
+  commissionPercent: number;
+  code?: string;
+  landingSlug?: string;
+}
+
+/** One purchase attributed to an affiliate code (from the Stripe webhook). */
+export interface AffiliateRedemption {
+  purchaseId: string;
+  ownerEmail: string;
+  priceId: string;
+  /** List price before the discount. */
+  grossUsd: number;
+  /** Discount the code applied. */
+  discountUsd: number;
+  /** What the customer actually paid. */
+  netUsd: number;
+  createdAt: string;
+}
+
+export interface AffiliatePage {
+  items: Affiliate[];
+  nextCursor: string | null;
+}
+
+export interface AffiliateRedemptionPage {
+  items: AffiliateRedemption[];
+  nextCursor: string | null;
+}
+
+/** Request body for `POST /admin/affiliates/{code}/report`. Period is [start, end). */
+export interface AffiliateReportRequest {
+  periodStart: string;
+  periodEnd: string;
 }
 
 export type ContentReviewStatus = 'pending' | 'approved' | 'edited';

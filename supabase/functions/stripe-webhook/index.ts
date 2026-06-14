@@ -62,6 +62,15 @@ async function handleCheckoutCompleted(event: Record<string, unknown>): Promise<
   const amountUsd = typeof session.amount_total === 'number' ? session.amount_total / 100 : null;
   const priceId = metadata.price_id || null;
 
+  // Affiliate attribution: the checkout tagged the applied code in metadata; the
+  // session carries the gross (pre-discount) subtotal and the discount amount.
+  const discountCode = metadata.discount_code || null;
+  const totalDetails = (session.total_details ?? {}) as Record<string, unknown>;
+  const discountUsd =
+    typeof totalDetails.amount_discount === 'number' ? totalDetails.amount_discount / 100 : null;
+  const grossUsd =
+    typeof session.amount_subtotal === 'number' ? session.amount_subtotal / 100 : amountUsd;
+
   const db = serviceClient();
 
   // Idempotency guard: the unique stripe_session_id rejects a redelivered event.
@@ -71,6 +80,9 @@ async function handleCheckoutCompleted(event: Record<string, unknown>): Promise<
     price_id: priceId,
     tier,
     amount_usd: amountUsd,
+    discount_code: discountCode,
+    discount_usd: discountUsd,
+    gross_usd: grossUsd,
     stripe_session_id: sessionId,
     stripe_payment_intent: paymentIntent,
   });

@@ -30,6 +30,8 @@ export interface CheckoutSessionParams {
   /** Echoed back on the webhook event, e.g. user_id / trip_id / tier. */
   metadata: Record<string, string>;
   mode?: 'payment' | 'subscription';
+  /** A Stripe promotion code id to pre-apply (affiliate discount). */
+  promotionCode?: string;
 }
 
 /** Create a Stripe Checkout Session; returns its id and hosted URL. */
@@ -45,6 +47,10 @@ export async function createCheckoutSession(
   form.append('cancel_url', p.cancelUrl);
   form.append('client_reference_id', p.clientReferenceId);
   if (p.customerEmail) form.append('customer_email', p.customerEmail);
+  // Pre-apply the affiliate promotion code, else let the customer enter one.
+  // (Stripe forbids combining `discounts` with `allow_promotion_codes`.)
+  if (p.promotionCode) form.append('discounts[0][promotion_code]', p.promotionCode);
+  else form.append('allow_promotion_codes', 'true');
   for (const [k, v] of Object.entries(p.metadata)) form.append(`metadata[${k}]`, v);
 
   const res = await fetch(`${STRIPE_API}/checkout/sessions`, {
@@ -60,6 +66,63 @@ export async function createCheckoutSession(
   }
   const data = await res.json();
   return { id: data.id as string, url: data.url as string };
+}
+
+// ----- Affiliate coupons + promotion codes ----------------------------------
+
+async function stripeForm(
+  secretKey: string,
+  path: string,
+  form: URLSearchParams,
+): Promise<Record<string, unknown>> {
+  const res = await fetch(`${STRIPE_API}${path}`, {
+    method: 'POST',
+    headers: {
+      authorization: `Bearer ${secretKey}`,
+      'content-type': 'application/x-www-form-urlencoded',
+    },
+    body: form.toString(),
+  });
+  if (!res.ok) throw new Error(`Stripe ${path} failed: ${res.status} ${await res.text()}`);
+  return (await res.json()) as Record<string, unknown>;
+}
+
+/** Create a percent-off coupon; returns its id. */
+export async function createCoupon(
+  secretKey: string,
+  percentOff: number,
+  name: string,
+): Promise<string> {
+  const form = new URLSearchParams();
+  form.append('percent_off', String(percentOff));
+  form.append('duration', 'forever');
+  form.append('name', name);
+  const data = await stripeForm(secretKey, '/coupons', form);
+  return data.id as string;
+}
+
+/** Create a promotion code (the customer-facing code) for a coupon; returns its id. */
+export async function createPromotionCode(
+  secretKey: string,
+  couponId: string,
+  code: string,
+): Promise<string> {
+  const form = new URLSearchParams();
+  form.append('coupon', couponId);
+  form.append('code', code.toUpperCase());
+  const data = await stripeForm(secretKey, '/promotion_codes', form);
+  return data.id as string;
+}
+
+/** Activate or deactivate a promotion code (pause/reactivate an affiliate). */
+export async function setPromotionCodeActive(
+  secretKey: string,
+  promotionCodeId: string,
+  active: boolean,
+): Promise<void> {
+  const form = new URLSearchParams();
+  form.append('active', String(active));
+  await stripeForm(secretKey, `/promotion_codes/${promotionCodeId}`, form);
 }
 
 /** Thrown when a webhook payload fails signature/timestamp verification. */
