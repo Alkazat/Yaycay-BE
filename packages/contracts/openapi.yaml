@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Yaycay API
-  version: 0.18.0
+  version: 0.19.0
   description: >
     Yaycay back-end HTTP API. The v0.1 surface (Phase 0) is the free-demo
     generator, signup/lead capture, the 2FA verify step, and trip + trip-content
@@ -462,6 +462,47 @@ paths:
           $ref: '#/components/responses/NotFound'
         '422':
           $ref: '#/components/responses/ValidationError'
+
+  /account/deletion-request:
+    post:
+      operationId: requestAccountDeletion
+      tags: [account]
+      summary: Request deletion of the caller's account data.
+      description: >
+        Stamps `deletion_requested_at` on the account (idempotent: the earliest
+        request time is preserved). Returns the updated account.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: The account with `deletion_requested_at` set.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccountSummary'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      operationId: cancelAccountDeletion
+      tags: [account]
+      summary: Cancel a pending account-deletion request.
+      description: >
+        Clears `deletion_requested_at`. Returns the updated account.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: The account with `deletion_requested_at` cleared.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccountSummary'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
 
   # ===== BYO-AI MCP (v0.6) =====
 
