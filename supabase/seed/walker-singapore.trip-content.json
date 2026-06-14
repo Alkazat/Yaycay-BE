@@ -1,0 +1,274 @@
+{
+  "trip": {
+    "id": "walker-sg-trip",
+    "destination": "Singapore",
+    "start_date": "2026-05-12",
+    "end_date": "2026-05-15",
+    "timezone": "Asia/Singapore",
+    "currency": "USD"
+  },
+  "days": [
+    {
+      "id": "d1",
+      "date": "2026-05-12",
+      "label": "Day 1 — Arrive & settle",
+      "summary": "Land, drop bags at the hotel and ease in with a gentle riverside evening so small legs aren't overwhelmed on day one.",
+      "weather": {
+        "summary": "Warm and humid, short showers",
+        "high": 31,
+        "low": 26,
+        "icon": "partly-rain"
+      },
+      "hotel": {
+        "name": "Marina Riverside Hotel",
+        "phase": "arrive",
+        "checkin": "15:00",
+        "note": "Family room, pool on level 4."
+      },
+      "moments": [
+        {
+          "id": "d1-pm",
+          "slot": "afternoon",
+          "title": "Settle in at the hotel",
+          "time_hint": "15:30",
+          "location": { "name": "Marina Riverside Hotel" },
+          "activities": [
+            {
+              "id": "d1-pm-1",
+              "kind": "shared",
+              "title": "Unpack and a first swim",
+              "body": "Check in, unpack the allergy kit somewhere everyone can find it, then a short swim to shake off the flight."
+            }
+          ]
+        },
+        {
+          "id": "d1-ev",
+          "slot": "evening",
+          "title": "Clarke Quay riverside stroll",
+          "time_hint": "18:30",
+          "location": { "name": "Clarke Quay" },
+          "activities": [
+            {
+              "id": "d1-ev-1",
+              "kind": "shared",
+              "title": "Riverside walk and dinner",
+              "body": "An easy walk by the water. Pick a restaurant where you can speak to the kitchen about Pip's tree-nut allergy before ordering."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "d2",
+      "date": "2026-05-13",
+      "label": "Day 2 — Gardens by the Bay",
+      "summary": "The big one: two different adventures at the same place in the morning, a carefully-handled lunch, a rain-proof afternoon, and a quiet swim to finish.",
+      "did_you_know": "The Supertrees are vertical gardens up to 50 metres tall — some collect rainwater and solar energy for the whole park.",
+      "weather": {
+        "summary": "Hot, heavy afternoon shower likely",
+        "high": 32,
+        "low": 27,
+        "icon": "thunder-pm"
+      },
+      "hotel": { "name": "Marina Riverside Hotel", "phase": "stay" },
+      "star_challenge": {
+        "title": "Explorer of the day",
+        "prompt": "Find one thing at the Gardens that you've never seen before and tell a grown-up about it.",
+        "stars": 5
+      },
+      "moments": [
+        {
+          "id": "d2-am",
+          "slot": "morning",
+          "title": "Gardens by the Bay — two adventures, one place",
+          "time_hint": "09:30",
+          "location": { "name": "Gardens by the Bay", "lat": 1.2816, "lng": 103.8636 },
+          "activities": [
+            {
+              "id": "d2-am-sam",
+              "kind": "kid",
+              "title": "Sam's Supertree engineering quest",
+              "body": "How do you build a tree taller than a building? Walk the OCBC Skyway and work out what holds the Supertrees up.",
+              "variants": {
+                "explorer": {
+                  "body": "Count the steel ribs on a Supertree and guess how rainwater travels down inside it. Sketch your own giant tree that could power a house.",
+                  "fact": "Each Supertree trunk is a concrete core wrapped in a steel frame that real plants grow up.",
+                  "quiz": {
+                    "q": "What two things do some Supertrees collect from the sky?",
+                    "a": "Rainwater and solar energy",
+                    "options": ["Rainwater and solar energy", "Wind and snow", "Sound and light"]
+                  }
+                }
+              },
+              "facts": ["The tallest Supertree is about 50 metres — roughly a 16-storey building."],
+              "challenge": {
+                "type": "quiz",
+                "prompt": "How tall is the tallest Supertree, roughly?",
+                "answer": "About 50 metres",
+                "options": ["5 metres", "About 50 metres", "500 metres"],
+                "stars": 3
+              }
+            },
+            {
+              "id": "d2-am-pip",
+              "kind": "kid",
+              "title": "Pip's Hidden Creatures trail (Cloud Forest)",
+              "body": "Step inside the misty mountain and hunt for hidden animals among the waterfalls and ferns.",
+              "variants": {
+                "little": {
+                  "body": "Can you find the big waterfall, a tiny frog and a sparkly flower? Point to each one and give it a name.",
+                  "fact": "The Cloud Forest waterfall is one of the tallest indoor waterfalls in the world.",
+                  "quiz": {
+                    "q": "What falls down inside the Cloud Forest?",
+                    "a": "A big waterfall",
+                    "options": ["A big waterfall", "Snow", "Rain of sweets"]
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "d2-md",
+          "slot": "midday",
+          "title": "Lunch at Satay by the Bay",
+          "time_hint": "12:30",
+          "location": { "name": "Satay by the Bay", "lat": 1.2806, "lng": 103.8676 },
+          "activities": [
+            {
+              "id": "d2-md-meal",
+              "kind": "shared",
+              "title": "Hawker lunch — Pip's tree-nut allergy flagged",
+              "body": "Tree-nut allergy: flagged. Satay sauce is made from ground peanuts and some stalls also use tree nuts, so this stop needs a kitchen check before ordering. What we checked: this is an open hawker centre with many stalls, so cross-contact is possible. Confirm on the day: ask each stall directly and watch for shared utensils. Lower-risk choices: grilled chicken rice, plain noodles or fresh fruit from stalls that do not prepare satay sauce. Higher-risk: any satay stall and its peanut/nut sauces. The final call always stays with a grown-up.",
+              "safety": {
+                "note": "Pip has a serious tree-nut allergy. Satay sauce is peanut/nut based. Use the ask-the-kitchen card, keep the EpiPen on you, and confirm with each stall before ordering — we flag and remind, we never say a dish is safe.",
+                "flags": [
+                  "Tree-nut allergy: flagged",
+                  "Peanut sauce on site",
+                  "Cross-contact possible at shared stalls"
+                ]
+              }
+            },
+            {
+              "id": "d2-md-card",
+              "kind": "adult",
+              "title": "Ask-the-kitchen card (English + Mandarin)",
+              "body": "Show this to the stall before ordering.\n\nEnglish: \"Does this dish contain any nuts or nut oils? My daughter has a serious tree-nut allergy.\"\n\n中文: \"这道菜含有坚果或坚果油吗？我女儿对坚果严重过敏。\"\n\nIf the stall is unsure, treat it as a no and choose another dish."
+            }
+          ]
+        },
+        {
+          "id": "d2-pm",
+          "slot": "afternoon",
+          "title": "Rain plan — ArtScience Museum",
+          "time_hint": "14:30",
+          "location": { "name": "ArtScience Museum", "lat": 1.2863, "lng": 103.8593 },
+          "activities": [
+            {
+              "id": "d2-pm-1",
+              "kind": "shared",
+              "title": "Indoor anchor if the afternoon storm rolls in",
+              "body": "Heavy showers are common after lunch. This is your pre-loaded indoor backup: the Future World digital playground is hands-on for both a 6 and a 9 year old. Swap it in if the radar looks wet — no re-planning needed."
+            }
+          ]
+        },
+        {
+          "id": "d2-ev",
+          "slot": "evening",
+          "title": "Quiet evening — hotel pool",
+          "time_hint": "18:00",
+          "location": { "name": "Marina Riverside Hotel" },
+          "activities": [
+            {
+              "id": "d2-ev-1",
+              "kind": "shared",
+              "title": "Pool wind-down and keepsake page",
+              "body": "An easy swim, then a few minutes for the kids to add to their keepsake journal while the day is fresh."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "d3",
+      "date": "2026-05-14",
+      "label": "Day 3 — Sentosa",
+      "summary": "Cable car across to Sentosa, beach time and a gentle nature walk, with the same allergy routine at lunch.",
+      "weather": { "summary": "Bright with sea breeze", "high": 31, "low": 27, "icon": "sunny" },
+      "hotel": { "name": "Marina Riverside Hotel", "phase": "stay" },
+      "moments": [
+        {
+          "id": "d3-am",
+          "slot": "morning",
+          "title": "Cable car to Sentosa",
+          "time_hint": "10:00",
+          "location": { "name": "Mount Faber Cable Car" },
+          "activities": [
+            {
+              "id": "d3-am-1",
+              "kind": "shared",
+              "title": "Ride over the harbour",
+              "body": "Glass cabins with big views — great for spotting ships and counting cranes."
+            }
+          ]
+        },
+        {
+          "id": "d3-pm",
+          "slot": "afternoon",
+          "title": "Beach and nature walk",
+          "time_hint": "13:30",
+          "location": { "name": "Palawan Beach" },
+          "activities": [
+            {
+              "id": "d3-pm-1",
+              "kind": "kid",
+              "title": "Sandcastle and shell hunt",
+              "body": "Build, dig and hunt for the prettiest shell. Reapply sunscreen — it's strong here."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "d4",
+      "date": "2026-05-15",
+      "label": "Day 4 — River Wonders & home",
+      "summary": "A relaxed final morning with the animals before the flight home.",
+      "weather": {
+        "summary": "Warm, chance of a shower",
+        "high": 30,
+        "low": 26,
+        "icon": "partly-rain"
+      },
+      "hotel": { "name": "Marina Riverside Hotel", "phase": "depart", "checkout": "11:00" },
+      "moments": [
+        {
+          "id": "d4-am",
+          "slot": "morning",
+          "title": "River Wonders",
+          "time_hint": "09:00",
+          "location": { "name": "River Wonders" },
+          "activities": [
+            {
+              "id": "d4-am-1",
+              "kind": "kid",
+              "title": "Find the manatees and pandas",
+              "body": "A calm last adventure — spot the giant pandas and the gentle manatees before heading to the airport."
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "grownups": {
+    "essentials": "Allergy protocol (Pip — tree nuts): carry two adrenaline auto-injectors (EpiPen) at all times, plus antihistamine. Know the signs of a reaction and the plan: give adrenaline first, then call 995 (Singapore emergency). Use the ask-the-kitchen card at every meal and confirm with staff before ordering — Yaycay flags and reminds; the final check is always yours. Nearest hospital to Marina Bay: Singapore General Hospital.",
+    "checklist": [
+      "Pack 2x EpiPen + antihistamine in the day bag",
+      "Show the ask-the-kitchen card before ordering at every stall",
+      "Confirm tree-nut handling with staff — don't rely on the menu alone",
+      "Carry water and sunscreen; reapply after the pool and beach",
+      "Save 995 (emergency) and the hotel address in your phone"
+    ],
+    "transport": "Singapore is easy on the MRT and by taxi/Grab. Marina Bay attractions are walkable from the hotel; use Grab when it's raining or legs are tired. Tap an EZ-Link or contactless card for the MRT."
+  }
+}
