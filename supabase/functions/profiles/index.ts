@@ -11,7 +11,7 @@ import { userContext, UnauthorizedError } from '../_shared/user-client.ts';
 const PROFILE_COLUMNS =
   'id, name, avatar, age, mode, type, pin_hash, interests, dietary, medical, created_at, updated_at';
 const EXPLORER_MODES = ['little', 'standard', 'explorer', 'explorer_plus'];
-const PROFILE_TYPES = ['child', 'guardian'];
+const PROFILE_TYPES = ['child', 'parent_carer'];
 
 const PIN_RE = /^\d{4}$/;
 const MAX_PIN_ATTEMPTS = 5;
@@ -103,7 +103,7 @@ function parseProfile(
   }
 
   if (body.type !== undefined) {
-    if (!PROFILE_TYPES.includes(String(body.type))) errs.push('type must be child or guardian');
+    if (!PROFILE_TYPES.includes(String(body.type))) errs.push('type must be child or parent_carer');
     else out.type = body.type;
   }
 
@@ -183,7 +183,7 @@ Deno.serve(async (req) => {
       return error('method_not_allowed', 'Use PATCH or DELETE.', 405);
     }
 
-    // /profiles/:id/pin - set/change a guardian PIN (write-only).
+    // /profiles/:id/pin - set/change a parent/carer PIN (write-only).
     if (seg.length === 2 && seg[1] === 'pin' && req.method === 'POST') {
       return await setPin(client, seg[0], req);
     }
@@ -204,8 +204,8 @@ Deno.serve(async (req) => {
   }
 });
 
-// ----- Guardian PIN (Grown-ups gate) ----------------------------------------
-// Set/verify a 4-digit PIN on a guardian profile. The PIN is hashed (PBKDF2)
+// ----- Parent/carer PIN (Grown-ups gate) ------------------------------------
+// Set/verify a 4-digit PIN on a parent_carer profile. The PIN is hashed (PBKDF2)
 // server-side and never returned; verify is rate-limited (lock after N fails).
 // This is a child-safety UX lock, not a hardened boundary (low-entropy by design).
 
@@ -223,8 +223,8 @@ async function setPin(client: ProfileClient, id: string, req: Request): Promise<
     .maybeSingle();
   if (selErr) throw new Error(selErr.message);
   if (!existing) return error('not_found', 'Profile not found.', 404);
-  if (existing.type !== 'guardian') {
-    return error('validation_error', 'A PIN can only be set on a guardian profile.', 422);
+  if (existing.type !== 'parent_carer') {
+    return error('validation_error', 'A PIN can only be set on a parent/carer profile.', 422);
   }
 
   const pinHash = await hashPin(pin);
@@ -252,9 +252,14 @@ async function verifyPin(client: ProfileClient, id: string, req: Request): Promi
   if (!data) return error('not_found', 'Profile not found.', 404);
   if (!data.pin_hash) return error('validation_error', 'No PIN is set for this profile.', 422);
 
+  // Already locked: report the lock window so the client can show a countdown.
   const lockedUntil = data.pin_locked_until ? new Date(data.pin_locked_until as string) : null;
   if (lockedUntil && lockedUntil.getTime() > Date.now()) {
-    return error('rate_limited', 'Too many attempts. Try again later.', 429);
+    return json({
+      verified: false,
+      attempts_remaining: 0,
+      locked_until: lockedUntil.toISOString(),
+    });
   }
 
   if (await verifyPinHash(pin, data.pin_hash as string)) {
@@ -262,20 +267,25 @@ async function verifyPin(client: ProfileClient, id: string, req: Request): Promi
       .from('child_profiles')
       .update({ pin_attempts: 0, pin_locked_until: null })
       .eq('id', id);
-    return json({ verified: true });
+    return json({ verified: true, attempts_remaining: MAX_PIN_ATTEMPTS, locked_until: null });
   }
 
   // Wrong PIN: count the attempt and lock after the cap.
   const attempts = ((data.pin_attempts as number) ?? 0) + 1;
-  const update =
-    attempts >= MAX_PIN_ATTEMPTS
-      ? {
-          pin_attempts: 0,
-          pin_locked_until: new Date(Date.now() + PIN_LOCK_MINUTES * 60_000).toISOString(),
-        }
-      : { pin_attempts: attempts };
-  await client.from('child_profiles').update(update).eq('id', id);
-  return json({ verified: false });
+  if (attempts >= MAX_PIN_ATTEMPTS) {
+    const lockIso = new Date(Date.now() + PIN_LOCK_MINUTES * 60_000).toISOString();
+    await client
+      .from('child_profiles')
+      .update({ pin_attempts: 0, pin_locked_until: lockIso })
+      .eq('id', id);
+    return json({ verified: false, attempts_remaining: 0, locked_until: lockIso });
+  }
+  await client.from('child_profiles').update({ pin_attempts: attempts }).eq('id', id);
+  return json({
+    verified: false,
+    attempts_remaining: MAX_PIN_ATTEMPTS - attempts,
+    locked_until: null,
+  });
 }
 
 function toHex(b: Uint8Array): string {

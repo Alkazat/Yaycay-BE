@@ -328,8 +328,8 @@ export interface ByoConnectorResponse {
 
 // ===== Profiles + progress (v0.9) ==========================================
 
-/** Who a profile belongs to. `child` → Explorers view; `guardian` → Grown-ups (PIN-gated). */
-export type ProfileType = 'child' | 'guardian';
+/** Who a profile belongs to. `child` → Explorers view; `parent_carer` → Grown-ups (PIN-gated). */
+export type ProfileType = 'child' | 'parent_carer';
 
 /** A profile on the account. Gates the per-profile experience (type, mode, journal, stars). */
 export interface ChildProfile {
@@ -337,11 +337,11 @@ export interface ChildProfile {
   name: string;
   avatar?: string | null;
   age?: number | null;
-  /** Voice / age band. Child bands: little|explorer|explorer_plus; `standard` is the guardian voice. */
+  /** Voice / age band. Child bands: little|explorer|explorer_plus; `standard` is the parent/carer voice. */
   mode?: ExplorerMode | null;
   /** Who the profile is. Defaults to `child`. */
   type: ProfileType;
-  /** Whether a guardian PIN is configured. Read-only; the PIN itself is never returned. */
+  /** Whether a parent/carer PIN is configured. Read-only; the PIN itself is never returned. */
   pin_set: boolean;
   interests: string[];
   /** Dietary flags surfaced to adults as content safety notes. */
@@ -378,7 +378,12 @@ export interface PinRequest {
 
 /** Response for `POST /profiles/{id}/pin/verify`. */
 export interface PinVerifyResponse {
+  /** Whether the submitted PIN matched. */
   verified: boolean;
+  /** Attempts left before lockout; `0` when locked (or on the attempt that triggers the lock). */
+  attempts_remaining: number;
+  /** ISO timestamp when the lock lifts, or `null` when not locked. */
+  locked_until: string | null;
 }
 
 /** Per-profile state for a trip: which items are done and the active mode. */

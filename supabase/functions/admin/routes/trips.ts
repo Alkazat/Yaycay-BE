@@ -116,7 +116,7 @@ export async function getTripProfiles(
   if (!trip) throw notFound('Trip not found.');
   const { data, error } = await db
     .from('child_profiles')
-    .select('id, name, age, mode, interests')
+    .select('id, name, age, mode, type, pin_hash, interests')
     .eq('user_id', trip.user_id);
   if (error) throw badRequest(error.message);
   return ok({
@@ -125,6 +125,8 @@ export async function getTripProfiles(
       name: p.name,
       ...(p.age != null ? { age: p.age } : {}),
       ...(p.mode ? { mode: p.mode } : {}),
+      type: p.type ?? 'child',
+      pin_set: p.pin_hash != null,
       interests: p.interests ?? [],
     })),
   });
