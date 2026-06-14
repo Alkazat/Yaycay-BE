@@ -11,21 +11,22 @@
 // The AI surfaces additionally log an ai_jobs row and honour the daily cap.
 
 import { corsHeaders, error, handlePreflight, json } from '../_shared/http.ts';
-import { userContext, UnauthorizedError } from '../_shared/user-client.ts';
+import { UnauthorizedError, userContext } from '../_shared/user-client.ts';
 import { validateTripContent } from '../_shared/trip-content-validate.ts';
 import {
   chatGeneratedBy,
+  type ChatMessage,
   chatModel,
   ingest as runIngest,
-  logAiError,
-  type ChatMessage,
   type IngestImage,
+  logAiError,
   planChatDeltas,
 } from '../_shared/harness.ts';
 import { applyPatch, PatchError, validatePatchShape } from '../_shared/trip-patch.ts';
 import type { TripContent } from '../_shared/content-types.ts';
 import { serviceClient } from '../_shared/service-client.ts';
 import { assertUnderCap, CapReachedError, finishJob, startJob } from '../_shared/ai-jobs.ts';
+import { briefText, readIntent } from '../_shared/trip-intent.ts';
 
 const TRIP_COLUMNS =
   'id, destination, start_date, end_date, timezone, currency, tier, status, retention_expires_at, created_at';
@@ -213,8 +214,9 @@ Deno.serve(async (req) => {
 
     // /trips/:id/stars  ·  /trips/:id/stars/claim - the reward economy.
     if (seg[1] === 'stars') {
-      if (seg.length === 2 && req.method === 'GET')
+      if (seg.length === 2 && req.method === 'GET') {
         return await handleStarsGet(client, tripId, url);
+      }
       if (seg.length === 3 && seg[2] === 'claim' && req.method === 'POST') {
         return await handleStarsClaim(client, userId, tripId, req);
       }
@@ -318,6 +320,9 @@ async function handlePlanChat(
 
   const destination = await tripDestination(client, tripId);
   const content = await readContent(client, tripId);
+  // Same intent the BYO-AI MCP exposes, so first-party chat plans to the family's
+  // brief (trip_intent is owner-scoped, so the user client reads its own).
+  const brief = briefText(await readIntent(client, tripId));
 
   // Cap + ledger use the service role: ai_jobs withholds insert from clients.
   const svc = serviceClient();
@@ -328,7 +333,7 @@ async function handlePlanChat(
     async start(controller) {
       controller.enqueue(sse({ start: true, generated_by: chatGeneratedBy() }));
       try {
-        for await (const delta of planChatDeltas({ destination, content, messages })) {
+        for await (const delta of planChatDeltas({ destination, content, brief, messages })) {
           controller.enqueue(sse({ delta }));
         }
         controller.enqueue(sse({ done: true, job_id: jobId }));
@@ -566,10 +571,9 @@ async function handleProgressUpdate(
   for (const id of asStringArray(body.mark_done)) done.add(id);
   for (const id of asStringArray(body.mark_undone)) done.delete(id);
 
-  const activeMode =
-    typeof body.active_mode === 'string'
-      ? body.active_mode
-      : ((existing?.active_mode as string | null | undefined) ?? null);
+  const activeMode = typeof body.active_mode === 'string'
+    ? body.active_mode
+    : ((existing?.active_mode as string | null | undefined) ?? null);
 
   const { data, error: dbErr } = await client
     .from('trip_progress')
@@ -784,8 +788,9 @@ async function handlePackingPatch(
       const item: PackItem = { id: crypto.randomUUID(), label, checked: false };
       if (body.qty !== undefined && body.qty !== null) {
         const n = Number(body.qty);
-        if (!Number.isInteger(n) || n < 1)
+        if (!Number.isInteger(n) || n < 1) {
           throw new ValidationError(['qty must be a positive integer']);
+        }
         item.qty = n;
       }
       section.items.push(item);
@@ -808,8 +813,9 @@ async function handlePackingPatch(
     }
     case 'reset': {
       // Trip-wide: clear every tick across all lists.
-      for (const l of lists)
+      for (const l of lists) {
         for (const s of l.sections) for (const it of s.items) it.checked = false;
+      }
       break;
     }
     default:

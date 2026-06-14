@@ -21,6 +21,7 @@ import { applyPatch, PatchError, type TripContentPatch } from '../_shared/trip-p
 import { validateTripContent } from '../_shared/trip-content-validate.ts';
 import type { TripContent } from '../_shared/content-types.ts';
 import { finishJob, startJob } from '../_shared/ai-jobs.ts';
+import { INTENT_FIELDS, readIntent, type TripIntent } from '../_shared/trip-intent.ts';
 
 const SERVER_INFO = { name: 'yaycay-byo-ai', version: '1.0.0' };
 const EMPTY: TripContent = { trip: {} as TripContent['trip'], days: [] };
@@ -48,6 +49,43 @@ const INSTRUCTIONS = [
   'add/update/move tools to build the itinerary. Account-scoped tokens must pass',
   'trip_id on every call; per-trip connector tokens may omit it.',
 ].join('\n');
+
+// A ready-made planning prompt encoding Yaycay's house style, so the assistant
+// can "plan a day for this family" without the parent re-explaining the rules.
+const PROMPTS = [
+  {
+    name: 'plan_a_day',
+    description: 'Draft a balanced, age-appropriate day that fits the family brief.',
+    arguments: [
+      { name: 'focus', description: 'Optional theme or anchor for the day.', required: false },
+    ],
+  },
+];
+
+function renderPrompt(
+  name: string,
+  args: Record<string, unknown>,
+): { description: string; messages: unknown[] } | null {
+  if (name !== 'plan_a_day') return null;
+  const focus = typeof args.focus === 'string' && args.focus.trim() ? args.focus.trim() : '';
+  const focusLine = focus ? ` The family would like the day to centre on: ${focus}.` : '';
+  return {
+    description: 'Plan a day that fits the family brief.',
+    messages: [
+      {
+        role: 'user',
+        content: {
+          type: 'text',
+          text: "First call get_trip_brief to load the family's intent, then propose one " +
+            'day as a few Moments (morning / midday / afternoon / evening) with a light, ' +
+            'realistic pace. Balance kid, shared, and adult activities, respect any ' +
+            'stated constraints and no-gos, and keep it age-appropriate.' + focusLine +
+            ' Present the plan for the parent to approve before you add it with the tools.',
+        },
+      },
+    ],
+  };
+}
 
 function rpcResult(id: unknown, result: unknown): Response {
   return json({ jsonrpc: '2.0', id, result });
@@ -250,7 +288,7 @@ Deno.serve(async (req) => {
   if (method === 'initialize') {
     return rpcResult(id, {
       protocolVersion: '2024-11-05',
-      capabilities: { tools: {} },
+      capabilities: { tools: {}, resources: {}, prompts: {} },
       serverInfo: SERVER_INFO,
       instructions: INSTRUCTIONS,
     });
@@ -260,6 +298,28 @@ Deno.serve(async (req) => {
   }
   if (method === 'tools/list') {
     return rpcResult(id, { tools: TOOLS });
+  }
+  if (method === 'resources/list') {
+    return rpcResult(id, { resources: await listBriefResources(ctx) });
+  }
+  if (method === 'resources/read') {
+    const uri = params.uri as string;
+    try {
+      return rpcResult(id, { contents: await readBriefResource(ctx, uri) });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      return rpcError(id, -32602, message);
+    }
+  }
+  if (method === 'prompts/list') {
+    return rpcResult(id, { prompts: PROMPTS });
+  }
+  if (method === 'prompts/get') {
+    const name = params.name as string;
+    const args = (params.arguments ?? {}) as Record<string, unknown>;
+    const prompt = renderPrompt(name, args);
+    if (!prompt) return rpcError(id, -32602, `Unknown prompt: ${name}`);
+    return rpcResult(id, prompt);
   }
   if (method === 'tools/call') {
     const name = params.name as string;
@@ -288,37 +348,15 @@ async function readContent(tid: string): Promise<TripContent> {
   return (data?.content as TripContent) ?? EMPTY;
 }
 
-// The trip brief: the "why" behind the trip, captured in trip_intent and shared
-// with Yaycay's own curation. Only set_trip_brief writes it; get_trip_brief
-// assembles it with the trip header so the assistant plans with context.
-interface TripIntent {
-  pace?: string | null;
-  budget?: string | null;
-  travellers?: unknown[];
-  interests?: string[];
-  must_do?: string[];
-  avoid?: string[];
-  notes?: string | null;
-  constraints?: Record<string, unknown>;
-}
-
-const INTENT_FIELDS = [
-  'pace',
-  'budget',
-  'travellers',
-  'interests',
-  'must_do',
-  'avoid',
-  'notes',
-  'constraints',
-] as const;
-
+// The trip brief: the "why" behind the trip. get_trip_brief assembles intent
+// (from the shared trip-intent module) with the trip header and a child-profile
+// seed so the assistant plans with context; set_trip_brief patch-writes intent.
 async function readBrief(ctx: Ctx): Promise<string> {
   const db = serviceClient();
-  const [{ data: trip }, { data: intent }, { data: children }] = await Promise.all([
+  const [{ data: trip }, intent, { data: children }] = await Promise.all([
     db.from('trips').select('destination, start_date, end_date, tier, status').eq('id', ctx.tid)
       .maybeSingle(),
-    db.from('trip_intent').select(INTENT_FIELDS.join(', ')).eq('trip_id', ctx.tid).maybeSingle(),
+    readIntent(db, ctx.tid),
     db.from('child_profiles').select('name, age, mode, interests, dietary, medical').eq(
       'user_id',
       ctx.uid,
@@ -328,7 +366,7 @@ async function readBrief(ctx: Ctx): Promise<string> {
     trip: trip ?? null,
     // Account-level child profiles, offered as a seed for the trip's travellers.
     child_profiles: children ?? [],
-    intent: intent ?? null,
+    intent,
     note: intent
       ? undefined
       : 'No brief captured yet. Ask the family about pace, interests, must-dos, ' +
@@ -336,15 +374,49 @@ async function readBrief(ctx: Ctx): Promise<string> {
   });
 }
 
+// The brief exposed as an MCP resource (read-only context the assistant can pull
+// without a tool call). One resource per trip the token can reach: the single
+// trip for a connector token, or all of the user's trips for an account grant.
+const BRIEF_URI = (tid: string) => `yaycay://trip/${tid}/brief`;
+const BRIEF_TID = (uri: string): string | null => {
+  const m = uri.match(/^yaycay:\/\/trip\/([^/]+)\/brief$/);
+  return m ? m[1] : null;
+};
+
+async function listBriefResources(
+  ctx: Ctx,
+): Promise<Array<{ uri: string; name: string; description: string; mimeType: string }>> {
+  const db = serviceClient();
+  const q = db.from('trips').select('id, destination').eq('user_id', ctx.uid);
+  // A connector token is bound to one trip; only expose that one.
+  const { data } = ctx.tid ? await q.eq('id', ctx.tid) : await q;
+  return (data ?? []).map((t) => ({
+    uri: BRIEF_URI(t.id as string),
+    name: `Brief: ${t.destination ?? 'trip'}`,
+    description: "The family's intent for this trip (travellers, pace, must-dos).",
+    mimeType: 'application/json',
+  }));
+}
+
+async function readBriefResource(
+  ctx: Ctx,
+  uri: string,
+): Promise<Array<{ uri: string; mimeType: string; text: string }>> {
+  const tid = BRIEF_TID(uri ?? '');
+  if (!tid) throw new Error(`Unknown resource: ${uri}`);
+  // Honour the token's reach: a connector token may only read its own trip; an
+  // account grant may read any trip it owns (resolveTrip validates ownership).
+  if (ctx.tid && tid !== ctx.tid) throw new Error('Resource not available for this token.');
+  const sub = await resolveTrip(ctx, { trip_id: tid });
+  const text = await readBrief(sub);
+  return [{ uri, mimeType: 'application/json', text }];
+}
+
 async function writeBrief(ctx: Ctx, a: Record<string, unknown>): Promise<string> {
   // Patch semantics: only the provided fields are written, the rest are left as
   // they are. We merge over the existing row so an omitted field is untouched.
   const db = serviceClient();
-  const { data: existing } = await db
-    .from('trip_intent')
-    .select(INTENT_FIELDS.join(', '))
-    .eq('trip_id', ctx.tid)
-    .maybeSingle();
+  const existing = await readIntent(db, ctx.tid);
 
   const patch: TripIntent = {};
   for (const f of INTENT_FIELDS) {
@@ -354,7 +426,7 @@ async function writeBrief(ctx: Ctx, a: Record<string, unknown>): Promise<string>
   const row = {
     trip_id: ctx.tid,
     user_id: ctx.uid,
-    ...(existing as TripIntent ?? {}),
+    ...(existing ?? {}),
     ...patch,
   };
   const { error: dbErr } = await db

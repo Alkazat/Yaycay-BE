@@ -29,9 +29,11 @@ Two new tools surface and capture intent:
   family wants (only the fields passed are updated). This is the capture path:
   understanding gathered during a chat becomes durable, structured data.
 
-Future, same channel: expose the brief as an MCP `resource` and ship a "plan a
-day for this family" `prompt` so the framing rides along without bloating tool
-responses. Not built yet; the `instructions` + brief tools are the first cut.
+Same channel, now also shipped: the brief is exposed as an MCP **resource**
+(`yaycay://trip/<id>/brief`, listed per trip the token can reach) so an assistant
+can pull context without a tool call, and a **prompt** (`plan_a_day`, with an
+optional `focus`) encodes the house style so "plan a day for this family" needs
+no re-explaining. `initialize` advertises `tools`, `resources`, and `prompts`.
 
 ## 2. Intent is first-class and shared (migration 0023_trip_intent)
 
@@ -80,8 +82,14 @@ the brief, `yaycay.plan` writes structure and intent; serving-side concerns
 
 ## Status
 
-- SHIPPED: `initialize` instructions, `get_trip_brief` / `set_trip_brief`,
-  migration `0023_trip_intent`, default connector scopes updated.
-- NEXT: brief-as-resource + a planning `prompt`; have curation read `trip_intent`
-  in the first-party pipeline; optionally seed `travellers` from `child_profiles`
-  on first read.
+- SHIPPED: `initialize` instructions + capabilities (tools/resources/prompts);
+  `get_trip_brief` / `set_trip_brief`; brief as MCP resource and the `plan_a_day`
+  prompt; migration `0023_trip_intent`; default connector scopes updated.
+- SHIPPED: first-party planning chat (`POST /trips/:id/chat`) now reads
+  `trip_intent` via the shared `_shared/trip-intent.ts` module and feeds the
+  family's brief into the planning companion's context - the same brief the MCP
+  exposes, so both paths plan to one understanding.
+- NEXT: have the demo/ingest curation surfaces read `trip_intent` too; optionally
+  seed `travellers` from `child_profiles` on first brief read; consider exposing
+  the brief resource via `resources/templates` for clients that prefer templated
+  URIs.
