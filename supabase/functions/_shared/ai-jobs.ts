@@ -53,6 +53,11 @@ export interface StartJobInput {
   kind: AiJobKind;
   model?: string;
   promptVersion?: string;
+  /** 'ours' (default) for our guardrailed pipeline; 'connector' for BYO-AI. */
+  source?: 'ours' | 'connector';
+  /** When source = connector: the oauth_grants id + assistant label. */
+  connectorId?: string | null;
+  assistant?: string | null;
 }
 
 /** Insert a running job row and return its id. Never throws on logging error. */
@@ -66,6 +71,9 @@ export async function startJob(db: SupabaseClient, input: StartJobInput): Promis
       status: 'running' as AiJobStatus,
       model: input.model ?? null,
       prompt_version: input.promptVersion ?? null,
+      source: input.source ?? 'ours',
+      connector_id: input.connectorId ?? null,
+      assistant: input.assistant ?? null,
     })
     .select('id')
     .single();
