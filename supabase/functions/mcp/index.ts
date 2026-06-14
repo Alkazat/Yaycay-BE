@@ -182,6 +182,8 @@ const SLOT_ORDER = ['morning', 'midday', 'afternoon', 'evening', 'night', 'anyti
 interface Ctx {
   uid: string;
   tid: string;
+  /** Tool-name scopes granted to this connector (per-tool authorisation). */
+  scopes: string[];
 }
 
 Deno.serve(async (req) => {
@@ -206,7 +208,7 @@ Deno.serve(async (req) => {
     const db = serviceClient();
     const { data: connector } = await db
       .from('connectors')
-      .select('id, user_id, trip_id, revoked_at')
+      .select('id, user_id, trip_id, revoked_at, scopes')
       .eq('id', claims.cid)
       .maybeSingle();
     if (!connector || connector.revoked_at || connector.trip_id !== claims.tid) {
@@ -216,7 +218,7 @@ Deno.serve(async (req) => {
       .from('connectors')
       .update({ last_used_at: new Date().toISOString() })
       .eq('id', claims.cid);
-    ctx = { uid: claims.uid, tid: claims.tid };
+    ctx = { uid: claims.uid, tid: claims.tid, scopes: (connector.scopes as string[]) ?? [] };
   } catch (err) {
     if (err instanceof TokenError) return rpcError(null, -32001, 'Invalid connector token.', 401);
     console.error('mcp auth error', err);
@@ -250,6 +252,13 @@ Deno.serve(async (req) => {
   if (method === 'tools/call') {
     const name = params.name as string;
     const args = (params.arguments ?? {}) as Record<string, unknown>;
+    // Per-tool authorisation: the tool must be in the connector's granted
+    // scopes. Connectors are minted with CONNECTOR_DEFAULT_SCOPES, so today this
+    // covers all tools - but a narrower grant is now enforced here, not merely
+    // advisory in the manifest.
+    if (!ctx.scopes.includes(name)) {
+      return rpcError(id, -32002, `Connector is not scoped for tool: ${name}`);
+    }
     try {
       const text = await callTool(ctx, name, args);
       return rpcResult(id, { content: [{ type: 'text', text }] });
@@ -288,12 +297,18 @@ async function readBrief(ctx: Ctx): Promise<string> {
     readIntent(db, ctx.tid),
     db
       .from('child_profiles')
-      .select('name, age, mode, interests, dietary, medical')
+      // Minimised seed for an external assistant: low-sensitivity planning
+      // fields only. Children's health data (dietary/medical) is deliberately
+      // NOT exported off-platform here; if the family wants it considered, they
+      // convey it per-trip via set_trip_brief (intent.constraints), which they
+      // control. The trip-scoped intent.travellers is the authoritative roster.
+      .select('name, age, mode, interests')
       .eq('user_id', ctx.uid),
   ]);
   return JSON.stringify({
     trip: trip ?? null,
-    // Account-level child profiles, offered as a seed for the trip's travellers.
+    // Low-sensitivity seed (no dietary/medical) the family can promote into the
+    // trip's travellers via set_trip_brief.
     child_profiles: children ?? [],
     intent,
     note: intent
