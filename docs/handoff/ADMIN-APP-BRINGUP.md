@@ -128,11 +128,21 @@ All under `…/functions/v1/admin`, all require admin+AAL2, all audited.
 | `PATCH /admin/affiliates/:code/status` | `{ status: "active" \| "paused" }` (toggles the Stripe promo). |
 | `GET /admin/affiliates/:code/redemptions` | Attributed purchases (paginated). |
 | `POST /admin/affiliates/:code/report` | `{ periodStart, periodEnd }` → emails the commission report via Brevo. |
+| **Data deletion console** ↓ | |
+| `GET /admin/deletion-requests` | Queue: accounts with a deletion request, oldest first, each with footprint (`tier`, `trips`, `media`, `purchases`), `ageDays`, `eligibleAt`, `eligible`. |
+| `GET /admin/deletion-requests/:userId` | Verify one request's footprint before acting. |
+| `POST /admin/deletion-requests/:userId/cancel` | Clear the request. |
+| `POST /admin/deletion-requests/:userId/execute` | Hard delete (irreversible). Body `{ email, force? }`: `email` must match the account (confirm-by-typing); blocked inside the 30-day grace window unless `force: true`. `409` if within grace, `422` on email mismatch. |
 
-Full request/response shapes are in `@alkazat/contracts@0.17.0`
+Full request/response shapes are in `@alkazat/contracts@0.20.0`
 (`openapi.yaml` + the generated DTOs: `Affiliate`, `CreateAffiliateInput`,
 `AffiliatePage`, `AffiliateRedemptionPage`, `AffiliateReportRequest`,
-`AdminAccount`, `ProductSummary`, etc.).
+`AdminAccount`, `ProductSummary`, `DeletionRequest`, `DeletionRequestPage`,
+`ExecuteDeletionRequest`, `DeletionResult`, `CancelDeletionResult`, etc.).
+
+> Consumer surfaces also shipped since this doc was written: `GET/PATCH /account`
+> (+ `POST/DELETE /account/deletion-request`) and the `media-sign-upload`
+> function. Those are FE-facing, not admin.
 
 ---
 
