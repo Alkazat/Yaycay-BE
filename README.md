@@ -7,7 +7,8 @@ endpoint, Stripe, and the Brevo sync. Thin, serverless, scales to zero.
 **This thread owns the shared contract** (`@alkazat/contracts`). FE, Admin and
 Website depend on what we publish, so the contract is the primary deliverable
 alongside the code. See [`docs/00-MODEL-CONTEXT.md`](docs/00-MODEL-CONTEXT.md)
-(read first) and [`docs/02-BACKEND-HANDOFF.md`](docs/02-BACKEND-HANDOFF.md).
+(read first) and [`docs/02-BACKEND-HANDOFF.md`](docs/02-BACKEND-HANDOFF.md). For brand marks in
+transactional email and OG/share images, see [`docs/BRAND-ASSETS.md`](docs/BRAND-ASSETS.md).
 
 ## Status: Phase 0 + admin v0.2 + use-our-AI v0.3 + commerce v0.5 + journal/MCP v0.6
 
