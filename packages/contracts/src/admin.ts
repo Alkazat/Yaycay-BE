@@ -9,7 +9,7 @@
  * (verified MFA). Non-admin or non-MFA callers get `403`.
  */
 
-import type { Tier } from './dto.js';
+import type { Tier, ProfileType } from './dto.js';
 import type { ActivityKind, Day, Moment, Activity } from './trip-content.js';
 
 export type { ActivityKind };
@@ -64,6 +64,10 @@ export interface AdminChildProfile {
   id: string;
   name: string;
   age: number;
+  /** Who the profile is (child → Explorers; parent_carer → Grown-ups). */
+  type: ProfileType;
+  /** Whether a parent/carer PIN is configured (read-only; the PIN is never returned). */
+  pin_set: boolean;
   interests: string[];
   /** Medical flags surfaced to adults as safety callouts. */
   medical?: string[];

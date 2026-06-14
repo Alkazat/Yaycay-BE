@@ -3193,7 +3193,7 @@ components:
     AdminChildProfile:
       type: object
       additionalProperties: false
-      required: [id, name, interests]
+      required: [id, name, type, pin_set, interests]
       properties:
         id: { type: string }
         name: { type: string }
@@ -3201,6 +3201,10 @@ components:
         mode:
           type: string
           enum: [little, standard, explorer, explorer_plus]
+        type: { $ref: '#/components/schemas/ProfileType' }
+        pin_set:
+          type: boolean
+          description: Whether a parent/carer PIN is configured (read-only; the PIN is never returned).
         interests:
           type: array
           items: { type: string }
