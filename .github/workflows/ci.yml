@@ -42,10 +42,7 @@ jobs:
           deno-version: v2.x
       - name: Type-check edge functions
         working-directory: supabase/functions
-        run: deno check demo-generate-day/index.ts signup-capture/index.ts admin/index.ts trips/index.ts auth-2fa-verify/index.ts checkout/index.ts stripe-webhook/index.ts media-sign-upload/index.ts mcp/index.ts connectors/index.ts disposal/index.ts profiles/index.ts account/index.ts
-      - name: Type-check the demo seed
-        working-directory: supabase
-        run: deno check seed/walker-demo.ts
+        run: deno check demo-generate-day/index.ts signup-capture/index.ts admin/index.ts trips/index.ts auth-2fa-verify/index.ts checkout/index.ts stripe-webhook/index.ts media-sign-upload/index.ts mcp/index.ts connectors/index.ts disposal/index.ts profiles/index.ts account/index.ts ../seed/walker-demo.ts
       - name: Unit-test the shared edge logic
         working-directory: supabase/functions
         run: deno test --allow-env _shared/trip-patch_test.ts _shared/stripe_test.ts _shared/mcp-token_test.ts
