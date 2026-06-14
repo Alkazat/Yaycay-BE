@@ -175,6 +175,37 @@ Deno.serve(async (req) => {
           .maybeSingle();
         if (!trip) throw new NotFoundError();
 
+        // A connector-driven write (FE MCP server forwards x-yaycay-source) must
+        // be observable + capped + reviewed, like any external-model mutation.
+        const fromConnector = req.headers.get('x-yaycay-source') === 'connector';
+        if (fromConnector) {
+          const svc = serviceClient();
+          await assertUnderCap(svc, tripId);
+          const { data, error: dbErr } = await client
+            .from('trip_content')
+            .upsert({ trip_id: tripId, user_id: userId, content: body }, { onConflict: 'trip_id' })
+            .select('content')
+            .single();
+          if (dbErr) throw new Error(dbErr.message);
+          const jobId = await startJob(svc, {
+            userId,
+            tripId,
+            kind: 'ingestion',
+            model: 'byo',
+            source: 'connector',
+            connectorId: req.headers.get('x-yaycay-connector-id'),
+            assistant: req.headers.get('x-yaycay-assistant'),
+          });
+          await finishJob(svc, jobId, 'succeeded');
+          await svc
+            .from('content_review')
+            .upsert(
+              { trip_id: tripId, status: 'pending', generated_at: new Date().toISOString() },
+              { onConflict: 'trip_id' },
+            );
+          return json(data.content);
+        }
+
         const { data, error: dbErr } = await client
           .from('trip_content')
           .upsert({ trip_id: tripId, user_id: userId, content: body }, { onConflict: 'trip_id' })
@@ -203,6 +234,19 @@ Deno.serve(async (req) => {
       if (req.method === 'GET') return await handleJournalList(client, tripId, url);
       if (req.method === 'POST') return await handleJournalCreate(client, userId, tripId, req);
       return error('method_not_allowed', 'Use GET or POST.', 405);
+    }
+
+    // /trips/:id/chat - reopenable planning-chat history (read-only here;
+    // content is loaded by the admin upload endpoint / demo seed).
+    if (seg.length === 2 && seg[1] === 'chat') {
+      if (req.method === 'GET') return await handleChatList(client, tripId);
+      return error('method_not_allowed', 'Use GET.', 405);
+    }
+
+    // /trips/:id/companion - pre-loaded "what's nearby" companion cards.
+    if (seg.length === 2 && seg[1] === 'companion') {
+      if (req.method === 'GET') return await handleCompanionList(client, tripId);
+      return error('method_not_allowed', 'Use GET.', 405);
     }
 
     // /trips/:id/progress - per-profile state (done items + active mode).
@@ -462,6 +506,33 @@ async function handleJournalList(client: UserClient, tripId: string, url: URL): 
   const entries = (data ?? []) as Array<{ media_ref?: string[] | null }>;
   await resolveMediaRefs(entries);
   return json({ entries });
+}
+
+const CHAT_COLUMNS = 'id, role, kind, content, meta, seq, created_at';
+
+// Reopenable planning-chat history. RLS scopes rows to the owner.
+async function handleChatList(client: UserClient, tripId: string): Promise<Response> {
+  const { data, error: dbErr } = await client
+    .from('trip_chat_messages')
+    .select(CHAT_COLUMNS)
+    .eq('trip_id', tripId)
+    .order('seq', { ascending: true })
+    .order('created_at', { ascending: true });
+  if (dbErr) throw new Error(dbErr.message);
+  return json({ messages: data ?? [] });
+}
+
+const COMPANION_COLUMNS = 'id, near_label, prompt, options, rain_plan, created_at';
+
+// Pre-loaded "what's nearby" companion cards. RLS scopes rows to the owner.
+async function handleCompanionList(client: UserClient, tripId: string): Promise<Response> {
+  const { data, error: dbErr } = await client
+    .from('trip_companion_cards')
+    .select(COMPANION_COLUMNS)
+    .eq('trip_id', tripId)
+    .order('created_at', { ascending: true });
+  if (dbErr) throw new Error(dbErr.message);
+  return json({ cards: data ?? [] });
 }
 
 async function handleJournalCreate(

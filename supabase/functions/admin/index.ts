@@ -14,6 +14,7 @@ import * as commerce from './routes/commerce.ts';
 import * as admins from './routes/admins.ts';
 import * as affiliates from './routes/affiliates.ts';
 import * as deletions from './routes/deletion-requests.ts';
+import * as connectors from './routes/connectors.ts';
 
 // Reduce the request path to the part after `/admin`, then split into segments.
 function adminSegments(url: URL): string[] {
@@ -77,6 +78,8 @@ async function route(
       if (a && b === 'content' && method === 'GET') return trips.getTripContent(req, ctx, a);
       if (a && b === 'profiles' && method === 'GET') return trips.getTripProfiles(req, ctx, a);
       if (a && b === 'progress' && method === 'GET') return trips.getTripProgress(req, ctx, a);
+      if (a && b === 'chat' && method === 'PUT') return trips.uploadTripChat(req, ctx, a);
+      if (a && b === 'companion' && method === 'PUT') return trips.uploadTripCompanion(req, ctx, a);
       break;
 
     case 'customers':
@@ -118,6 +121,11 @@ async function route(
         if (method === 'GET') return admins.listAdmins(req, ctx);
         if (method === 'POST') return admins.setAdminRole(req, ctx);
       }
+      break;
+
+    case 'connectors':
+      if (!a && method === 'GET') return connectors.listConnectors(req, ctx);
+      if (a && b === 'revoke' && method === 'POST') return connectors.revokeConnector(req, ctx, a);
       break;
 
     case 'affiliates':

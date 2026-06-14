@@ -33,8 +33,12 @@ SUPABASE_URL=https://nzmjkbjtcjthjwdscjrj.supabase.co \
 SUPABASE_SERVICE_ROLE_KEY=<service-role-key> \
 DEMO_WALKER_PASSWORD=<vault password> \
 DEMO_WALKER_PIN=<4-digit pin> \
-deno run --allow-env --allow-net supabase/seed/walker-demo.ts
+deno run -A supabase/seed/walker-demo.ts
 ```
+
+(The `-A` allows env/net/read-write; the colocated `deno.json` here turns on
+`nodeModulesDir: auto` so the Supabase library's npm sub-deps install on first
+run. If `deno` isn't on your PATH after install, call it as `~/.deno/bin/deno`.)
 
 - **Service role key**: Supabase Dashboard -> Project Settings -> API ->
   `service_role` (secret). Do not commit it.
@@ -52,15 +56,14 @@ delete from auth.users where email = 'demo.walker@yaycay.example';
 
 (Or use the admin Data Deletion console: `POST /admin/deletion-requests/{userId}/execute`.)
 
-## Known gap (not BE-seedable)
+## Planning chat + companion (now server-backed, v0.21)
 
-The brief asks for a **reopenable planning chat** (3 Q&A + a forwarded
-hotel-confirmation chip) and **canned "what's nearby" companion answers**.
-Planning chat is stateless SSE streaming and there is **no chat-history or
-companion table** in the back end, so these cannot be seeded server-side. Those
-screenshots (#1, #4, #6, #12) need FE mock/fixture state in `Yaycay-FE`. Flag to
-the FE thread; if we want them server-backed, that's a new contract + tables
-(separate task).
+The seed also populates the **reopenable planning chat** (3 Q&A + a forwarded
+hotel-confirmation chip) and a **"what's nearby" companion card** (2 tree-nut
+flagged options + a rain plan) into the v0.21 chat/companion store, so
+screenshots #1/#4/#6/#12 render from real data. The FE reads them at
+`GET /trips/{id}/chat` and `GET /trips/{id}/companion`; ops can re-upload via
+`PUT /admin/trips/{id}/chat` and `/companion`.
 
 ## Hand-off
 
