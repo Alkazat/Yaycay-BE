@@ -412,6 +412,35 @@ async function handleIngest(
 
 const JOURNAL_COLUMNS = 'id, trip_id, profile_id, body, mood, stars, day_id, media_ref, created_at';
 
+const MEDIA_BUCKET = 'trip-media';
+const MEDIA_URL_TTL_SECONDS = 3600;
+
+// Resolve stored media_ref ids to short-lived signed download URLs so the FE
+// can display photos. The bucket is private, so we sign with the service role.
+// Unresolvable ids are dropped rather than surfaced as broken links.
+async function resolveMediaRefs(entries: Array<{ media_ref?: string[] | null }>): Promise<void> {
+  const ids = [...new Set(entries.flatMap((e) => (Array.isArray(e.media_ref) ? e.media_ref : [])))];
+  if (ids.length === 0) return;
+
+  const svc = serviceClient();
+  const { data: assets } = await svc.from('media_assets').select('id, path').in('id', ids);
+  const urlById = new Map<string, string>();
+  for (const a of assets ?? []) {
+    const { data: signed } = await svc.storage
+      .from(MEDIA_BUCKET)
+      .createSignedUrl(a.path as string, MEDIA_URL_TTL_SECONDS);
+    if (signed?.signedUrl) urlById.set(a.id as string, signed.signedUrl);
+  }
+
+  for (const e of entries) {
+    if (Array.isArray(e.media_ref)) {
+      e.media_ref = e.media_ref
+        .map((id) => urlById.get(id))
+        .filter((u): u is string => typeof u === 'string');
+    }
+  }
+}
+
 async function handleJournalList(client: UserClient, tripId: string, url: URL): Promise<Response> {
   let q = client
     .from('journal_entries')
@@ -422,7 +451,9 @@ async function handleJournalList(client: UserClient, tripId: string, url: URL): 
   if (profileId) q = q.eq('profile_id', profileId);
   const { data, error: dbErr } = await q;
   if (dbErr) throw new Error(dbErr.message);
-  return json({ entries: data ?? [] });
+  const entries = (data ?? []) as Array<{ media_ref?: string[] | null }>;
+  await resolveMediaRefs(entries);
+  return json({ entries });
 }
 
 async function handleJournalCreate(
