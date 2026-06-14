@@ -35,7 +35,7 @@ can pull context without a tool call, and a **prompt** (`plan_a_day`, with an
 optional `focus`) encodes the house style so "plan a day for this family" needs
 no re-explaining. `initialize` advertises `tools`, `resources`, and `prompts`.
 
-## 2. Intent is first-class and shared (migration 0023_trip_intent)
+## 2. Intent is first-class and shared (migration 0024_trip_intent)
 
 `public.trip_intent` (one row per trip, owner-scoped RLS, mirrors `trip_content`)
 holds: `pace`, `budget`, `travellers` (jsonb), `interests`, `must_do`, `avoid`,
@@ -84,7 +84,7 @@ the brief, `yaycay.plan` writes structure and intent; serving-side concerns
 
 - SHIPPED: `initialize` instructions + capabilities (tools/resources/prompts);
   `get_trip_brief` / `set_trip_brief`; brief as MCP resource and the `plan_a_day`
-  prompt; migration `0023_trip_intent`; default connector scopes updated.
+  prompt; migration `0024_trip_intent`; default connector scopes updated.
 - SHIPPED: first-party planning chat (`POST /trips/:id/chat`) now reads
   `trip_intent` via the shared `_shared/trip-intent.ts` module and feeds the
   family's brief into the planning companion's context - the same brief the MCP

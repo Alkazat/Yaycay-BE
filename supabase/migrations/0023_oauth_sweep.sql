@@ -1,5 +1,5 @@
--- 0022_oauth_sweep.sql
--- Housekeeping for the BYO-AI OAuth store (see 0021_oauth.sql and
+-- 0023_oauth_sweep.sql
+-- Housekeeping for the BYO-AI OAuth store (see 0022_oauth.sql and
 -- docs/handoff/MCP-CONNECTOR-BE-RESPONSE.md item 4 / BE next-step 4).
 --
 -- Authorization codes are single-use and short-lived, but an abandoned flow

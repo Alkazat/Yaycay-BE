@@ -1,4 +1,4 @@
--- 0023_trip_intent.sql
+-- 0024_trip_intent.sql
 -- First-class trip intent: the "why" behind a trip, captured once and shared by
 -- BOTH the BYO-AI MCP (for planning) and Yaycay's own first-party curation /
 -- serving pipeline. See docs/handoff/MCP-CONTEXT-AND-INTENT.md.

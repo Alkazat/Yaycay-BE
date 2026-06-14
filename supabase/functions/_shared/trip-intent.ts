@@ -1,4 +1,4 @@
-// Trip intent: the "why" behind a trip (public.trip_intent, migration 0023).
+// Trip intent: the "why" behind a trip (public.trip_intent, migration 0024).
 //
 // Captured once and shared by BOTH the BYO-AI MCP (get/set_trip_brief) and
 // Yaycay's first-party planning/curation (the use-our-AI chat reads it as

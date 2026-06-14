@@ -1,4 +1,4 @@
--- 0021_oauth.sql
+-- 0022_oauth.sql
 -- Durable store for the BYO-AI OAuth 2.1 authorization server (the FE ships the
 -- AS + the remote MCP endpoint at /api/mcp; this is the shared, durable backing
 -- it needs before production - see docs/handoff/MCP-CONNECTOR-BE-RESPONSE.md).

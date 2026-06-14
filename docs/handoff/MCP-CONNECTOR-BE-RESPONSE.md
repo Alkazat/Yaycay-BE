@@ -11,7 +11,7 @@ decisions on the four hardening items, plus what BE has shipped and what is next
 
 ## 1. Durable, shared OAuth store - SHIPPED (schema)
 
-Migration `0021_oauth.sql` adds the three tables the in-memory `OAuthStore`
+Migration `0022_oauth.sql` adds the three tables the in-memory `OAuthStore`
 needs, so production state survives redeploys and is shared across instances:
 
 - `oauth_clients` - registered clients (RFC 7591): redirect uris, grant types,
@@ -124,7 +124,7 @@ flow; this is purely additive.
    revoke` sets `oauth_grants.revoked_at`, which `verifyMcpToken` rejects on the
    next call.
 4. A scheduled sweep of expired `oauth_codes` / stale grants - **SHIPPED.**
-   Migration `0022_oauth_sweep.sql` adds `app.sweep_oauth()` (deletes expired
+   Migration `0023_oauth_sweep.sql` adds `app.sweep_oauth()` (deletes expired
    codes, prunes grants revoked >30 days ago) on a best-effort 15-minute pg_cron
    schedule, mirroring the retention disposal pattern.
 
