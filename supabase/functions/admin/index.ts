@@ -13,6 +13,7 @@ import * as review from './routes/content-review.ts';
 import * as commerce from './routes/commerce.ts';
 import * as admins from './routes/admins.ts';
 import * as affiliates from './routes/affiliates.ts';
+import * as deletions from './routes/deletion-requests.ts';
 
 // Reduce the request path to the part after `/admin`, then split into segments.
 function adminSegments(url: URL): string[] {
@@ -83,6 +84,14 @@ async function route(
       if (a && b === 'deletion-request' && method === 'POST') {
         return customers.requestCustomerDeletion(req, ctx, a);
       }
+      break;
+
+    case 'deletion-requests':
+      if (!a && method === 'GET') return deletions.listDeletionRequests(req, ctx);
+      if (a && !b && method === 'GET') return deletions.getDeletionRequest(req, ctx, a);
+      if (a && b === 'cancel' && method === 'POST')
+        return deletions.cancelDeletionRequest(req, ctx, a);
+      if (a && b === 'execute' && method === 'POST') return deletions.executeDeletion(req, ctx, a);
       break;
 
     case 'content-review':

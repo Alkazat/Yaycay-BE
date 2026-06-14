@@ -320,3 +320,59 @@ export interface ContentReviewItem {
   reviewedAt: string | null;
   reviewedBy: string | null;
 }
+
+// ===== Data deletion console (v0.20) =======================================
+
+/**
+ * An account that has requested deletion, with its data footprint and grace
+ * status. `eligible` is true once `eligibleAt` (requestedAt + 30-day grace) has
+ * passed; `execute` is blocked before then unless forced.
+ */
+export interface DeletionRequest {
+  userId: string;
+  email: string;
+  /** When deletion was first requested (ISO 8601). */
+  requestedAt: string;
+  /** Whole days since the request. */
+  ageDays: number;
+  /** When the request becomes eligible to execute without a force override. */
+  eligibleAt: string;
+  /** True once the grace period has elapsed. */
+  eligible: boolean;
+  /** Best entitlement across the account's trips. */
+  tier: string | null;
+  /** Counts of what an execute would erase (journal/profiles cascade from trips). */
+  trips: number;
+  media: number;
+  /** Purchases survive (anonymized) for financial records; shown for context. */
+  purchases: number;
+}
+
+export interface DeletionRequestPage {
+  items: DeletionRequest[];
+  nextCursor: string | null;
+}
+
+/**
+ * Body for `POST /admin/deletion-requests/{userId}/execute`. `email` must match
+ * the account's email (confirm-by-typing). `force` overrides the grace period.
+ */
+export interface ExecuteDeletionRequest {
+  email: string;
+  force?: boolean;
+}
+
+/** Result of an execute: the hard delete completed. */
+export interface DeletionResult {
+  deleted: true;
+  userId: string;
+  email: string;
+  footprint: { tier: string | null; trips: number; media: number; purchases: number };
+}
+
+/** Result of a cancel: the request was cleared. */
+export interface CancelDeletionResult {
+  userId: string;
+  email: string;
+  cancelled: true;
+}
