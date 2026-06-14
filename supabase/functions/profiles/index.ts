@@ -282,13 +282,17 @@ function toHex(b: Uint8Array): string {
   return [...b].map((x) => x.toString(16).padStart(2, '0')).join('');
 }
 
-function fromHex(h: string): Uint8Array {
+function fromHex(h: string): Uint8Array<ArrayBuffer> {
   const out = new Uint8Array(h.length / 2);
   for (let i = 0; i < out.length; i++) out[i] = parseInt(h.slice(i * 2, i * 2 + 2), 16);
   return out;
 }
 
-async function pbkdf2(pin: string, salt: Uint8Array, iterations: number): Promise<Uint8Array> {
+async function pbkdf2(
+  pin: string,
+  salt: Uint8Array<ArrayBuffer>,
+  iterations: number,
+): Promise<Uint8Array> {
   const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(pin), 'PBKDF2', false, [
     'deriveBits',
   ]);
