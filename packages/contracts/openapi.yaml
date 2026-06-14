@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Yaycay API
-  version: 0.21.0
+  version: 0.22.0
   description: >
     Yaycay back-end HTTP API. The v0.1 surface (Phase 0) is the free-demo
     generator, signup/lead capture, the 2FA verify step, and trip + trip-content
@@ -1192,6 +1192,57 @@ paths:
           $ref: '#/components/responses/NotFound'
         '422':
           $ref: '#/components/responses/ValidationError'
+
+  /admin/connectors:
+    get:
+      operationId: listConnectors
+      tags: [admin]
+      summary: Cross-account list of BYO-AI MCP connector grants.
+      description: >
+        Every connected assistant across all accounts (a view over oauth_grants).
+        `query` filters by owner email or assistant label.
+      security:
+        - adminAuth: []
+      parameters:
+        - name: query
+          in: query
+          required: false
+          schema: { type: string }
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: A page of connector grants.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminConnectorPage'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/connectors/{id}/revoke:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    post:
+      operationId: revokeConnector
+      tags: [admin]
+      summary: Revoke a connector grant (incident-response kill switch).
+      description: >
+        Marks the grant revoked, stamps revoked_at and bumps token_version so
+        previously-issued tokens fail verification on the next MCP call.
+      security:
+        - adminAuth: []
+      responses:
+        '200':
+          description: The revoked connector.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminConnector'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
 
   /admin/customers:
     get:
@@ -3811,6 +3862,37 @@ components:
         userId: { type: string }
         email: { type: string, format: email }
         cancelled: { type: boolean, enum: [true] }
+
+    ConnectorScope:
+      type: string
+      enum: [yaycay.read, yaycay.plan]
+
+    AdminConnector:
+      type: object
+      additionalProperties: false
+      required: [id, userId, ownerEmail, assistant, clientId, scopes, status, createdAt, lastUsedAt]
+      properties:
+        id: { type: string }
+        userId: { type: string }
+        ownerEmail: { type: string }
+        assistant: { type: string }
+        clientId: { type: string }
+        scopes:
+          type: array
+          items: { $ref: '#/components/schemas/ConnectorScope' }
+        status: { type: string, enum: [active, revoked] }
+        createdAt: { type: string, format: date-time }
+        lastUsedAt: { type: [string, 'null'], format: date-time }
+
+    AdminConnectorPage:
+      type: object
+      additionalProperties: false
+      required: [items, nextCursor]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/AdminConnector' }
+        nextCursor: { type: [string, 'null'] }
 
     CheckoutSessionRequest:
       type: object

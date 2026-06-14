@@ -376,3 +376,31 @@ export interface CancelDeletionResult {
   email: string;
   cancelled: true;
 }
+
+// ===== BYO-AI MCP connectors (admin ops view) (v0.22) ======================
+
+export type ConnectorScope = 'yaycay.read' | 'yaycay.plan';
+
+/**
+ * An OAuth grant behind a parent's connected assistant, as the admin ops view
+ * sees it (a row of `oauth_grants`). `id` is the grant id used to revoke.
+ */
+export interface AdminConnector {
+  id: string;
+  userId: string;
+  ownerEmail: string;
+  /** Human label, e.g. "Claude (claude.ai)". */
+  assistant: string;
+  /** OAuth client id (RFC 7591 dynamic registration). */
+  clientId: string;
+  scopes: ConnectorScope[];
+  status: 'active' | 'revoked';
+  createdAt: string;
+  /** Last tool call on this grant; null if never used. */
+  lastUsedAt: string | null;
+}
+
+export interface AdminConnectorPage {
+  items: AdminConnector[];
+  nextCursor: string | null;
+}
