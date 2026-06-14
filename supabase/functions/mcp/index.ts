@@ -9,11 +9,11 @@
 
 import { json } from '../_shared/http.ts';
 import { serviceClient } from '../_shared/service-client.ts';
-import { verifyToken, TokenError } from '../_shared/mcp-token.ts';
+import { McpAuthError, verifyMcpToken } from '../_shared/mcp-auth.ts';
 import { applyPatch, PatchError, type TripContentPatch } from '../_shared/trip-patch.ts';
 import { validateTripContent } from '../_shared/trip-content-validate.ts';
 import type { TripContent } from '../_shared/content-types.ts';
-import { startJob, finishJob } from '../_shared/ai-jobs.ts';
+import { finishJob, startJob } from '../_shared/ai-jobs.ts';
 
 const SERVER_INFO = { name: 'yaycay-byo-ai', version: '1.0.0' };
 const EMPTY: TripContent = { trip: {} as TripContent['trip'], days: [] };
@@ -25,7 +25,13 @@ function rpcError(id: unknown, code: number, message: string, status = 200): Res
   return json({ jsonrpc: '2.0', id, error: { code, message } }, status);
 }
 
-const TOOLS = [
+interface ToolDef {
+  name: string;
+  description: string;
+  inputSchema: { type: string; required?: string[]; properties: Record<string, unknown> };
+}
+
+const TOOLS: ToolDef[] = [
   {
     name: 'get_trip',
     description: 'Read the full trip content (Holiday -> Days -> Moments -> Activities).',
@@ -114,13 +120,38 @@ const TOOLS = [
 
 const SLOT_ORDER = ['morning', 'midday', 'afternoon', 'evening', 'night', 'anytime'];
 
+// Account-scoped (OAuth) tokens are not bound to a single trip, so every tool
+// also accepts an optional `trip_id`. Connector tokens ignore it (their trip is
+// fixed by the token). Injected once so the two auth models share one surface.
+for (const t of TOOLS) {
+  t.inputSchema.properties = { trip_id: { type: 'string' }, ...t.inputSchema.properties };
+}
+
 interface Ctx {
   uid: string;
   tid: string;
 }
 
+// Resolve the trip a tool call should act on. Connector tokens carry it; an
+// account-scoped grant must name it via `trip_id`, and we confirm it belongs to
+// the grant's user before acting (the grant is account-wide, not a blank cheque
+// on trips that are not theirs).
+async function resolveTrip(ctx: Ctx, a: Record<string, unknown>): Promise<Ctx> {
+  if (ctx.tid) return ctx;
+  const tid = typeof a.trip_id === 'string' ? a.trip_id : '';
+  if (!tid) throw new Error('trip_id is required for account-scoped tokens.');
+  const { data: trip } = await serviceClient()
+    .from('trips')
+    .select('id')
+    .eq('id', tid)
+    .eq('user_id', ctx.uid)
+    .maybeSingle();
+  if (!trip) throw new Error('Trip not found for this account.');
+  return { uid: ctx.uid, tid };
+}
+
 Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS')
+  if (req.method === 'OPTIONS') {
     return new Response('ok', {
       headers: {
         'Access-Control-Allow-Origin': '*',
@@ -128,32 +159,23 @@ Deno.serve(async (req) => {
         'Access-Control-Allow-Methods': 'POST, OPTIONS',
       },
     });
+  }
   if (req.method !== 'POST') return rpcError(null, -32600, 'Use POST.');
 
-  // ----- Auth: connector token -----
+  // ----- Auth: connector token OR OAuth grant access token -----
+  // verifyMcpToken dual-accepts both and resolves to { user, scopes, trip? }.
+  // A connector token is bound to one trip (ctx.tid is fixed); an account-scoped
+  // OAuth grant is not, so the trip is resolved per tool call from `trip_id`.
   const auth = req.headers.get('authorization') ?? '';
   const token = auth.toLowerCase().startsWith('bearer ') ? auth.slice(7).trim() : '';
-  if (!token) return rpcError(null, -32001, 'Missing connector token.', 401);
+  if (!token) return rpcError(null, -32001, 'Missing access token.', 401);
 
   let ctx: Ctx;
   try {
-    const claims = await verifyToken(token);
-    const db = serviceClient();
-    const { data: connector } = await db
-      .from('connectors')
-      .select('id, user_id, trip_id, revoked_at')
-      .eq('id', claims.cid)
-      .maybeSingle();
-    if (!connector || connector.revoked_at || connector.trip_id !== claims.tid) {
-      return rpcError(null, -32001, 'Connector is not active.', 401);
-    }
-    await db
-      .from('connectors')
-      .update({ last_used_at: new Date().toISOString() })
-      .eq('id', claims.cid);
-    ctx = { uid: claims.uid, tid: claims.tid };
+    const resolved = await verifyMcpToken(token, serviceClient());
+    ctx = { uid: resolved.user, tid: resolved.trip ?? '' };
   } catch (err) {
-    if (err instanceof TokenError) return rpcError(null, -32001, 'Invalid connector token.', 401);
+    if (err instanceof McpAuthError) return rpcError(null, -32001, err.message, 401);
     console.error('mcp auth error', err);
     return rpcError(null, -32603, 'Internal error.', 500);
   }
@@ -240,7 +262,8 @@ async function applyOps(ctx: Ctx, patch: TripContentPatch, summary: string): Pro
   return mutate(ctx, next, summary);
 }
 
-async function callTool(ctx: Ctx, name: string, a: Record<string, unknown>): Promise<string> {
+async function callTool(rawCtx: Ctx, name: string, a: Record<string, unknown>): Promise<string> {
+  const ctx = await resolveTrip(rawCtx, a);
   switch (name) {
     case 'get_trip':
       return JSON.stringify(await readContent(ctx.tid));

@@ -58,6 +58,28 @@ Two-step:
   JWT); BE will publish the endpoint + shape before you wire it. Ship the
   refresh-the-stored-token path now; plan for the mint path next.
 
+**Published contract for the mint path (so you can plan against it; not wired
+yet).** Two service-to-service calls, AS -> BE, authorized by the service-role
+key (these are not browser-facing):
+
+- `POST /connectors/grant/token` - mint a grant token. Body `{ grant_id }`.
+  Returns `{ grant_token, expires_in }`. The `grant_token` is an opaque,
+  user-scoped, short-lived (~10 min) bearer that the AS hands to the tool layer
+  instead of a Supabase JWT. BE binds it to `oauth_grants.id` and the user; the
+  AS no longer needs to store the parent's Supabase refresh token.
+- `POST /connectors/grant/exchange` - exchange a grant token for a fresh,
+  short-lived Supabase access token. Body `{ grant_token }`. Returns
+  `{ access_token, expires_in }` where `access_token` is a user-scoped Supabase
+  JWT (sub = the parent, role = authenticated) minted by BE for the call. The AS
+  calls this when a tool needs to act as the parent; BE never returns a refresh
+  token.
+
+Migration to adopt it: when this lands, the AS stops writing
+`oauth_grants.supabase_refresh_token`; existing grants keep working on the
+refresh-the-stored-token path until they are re-consented. We will not ship the
+minting code until you signal you are ready to consume it, to avoid a dormant
+JWT-minting surface.
+
 ## 3. Auth model vs `POST /connectors/byo-ai` - decision
 
 Adopt your recommendation: **OAuth (account-scoped) is the primary path.**
@@ -84,12 +106,27 @@ flow; this is purely additive.
   which `verifyMcpToken` must check on every call). Say the word and we will
   finalize the contract shape; you build the management screen.
 
-## BE next steps (not in this change)
+## BE next steps
 
-1. `verifyMcpToken` dual-accept (item 3) once you are ready to consume it.
-2. The mint/refresh endpoint for user-scoped grant tokens (item 2, preferred).
-3. The unified `GET /connectors` + grant revoke for the management UI (item 4).
-4. A scheduled sweep of expired `oauth_codes` / stale grants.
+1. `verifyMcpToken` dual-accept (item 3) - **SHIPPED.** `_shared/mcp-auth.ts`
+   exposes `verifyMcpToken(token, db)`, which accepts a connector token or an
+   OAuth grant access token (validated by SHA-256 hash against `oauth_grants`) and
+   returns `{ user, scopes, trip?, kind }`. The `/mcp` endpoint now uses it;
+   account-scoped grants name the trip per call via a `trip_id` argument (added to
+   every tool's input schema), and BE confirms the trip belongs to the grant's
+   user before acting. Stamps `last_used_at` on whichever row backs the token.
+2. The mint/refresh endpoint for user-scoped grant tokens (item 2, preferred) -
+   **contract published above; code deferred** until FE signals readiness.
+3. The unified `GET /connectors` + grant revoke for the management UI (item 4) -
+   **SHIPPED.** `GET /connectors` now returns connector tokens AND OAuth grants in
+   one list, each tagged `kind` (`connector` | `oauth`) with a sanitized shape
+   (no token hashes, no captured Supabase tokens). `POST /connectors/grants/:id/
+   revoke` sets `oauth_grants.revoked_at`, which `verifyMcpToken` rejects on the
+   next call.
+4. A scheduled sweep of expired `oauth_codes` / stale grants - **SHIPPED.**
+   Migration `0022_oauth_sweep.sql` adds `app.sweep_oauth()` (deletes expired
+   codes, prunes grants revoked >30 days ago) on a best-effort 15-minute pg_cron
+   schedule, mirroring the retention disposal pattern.
 
 ## Open question (answered)
 

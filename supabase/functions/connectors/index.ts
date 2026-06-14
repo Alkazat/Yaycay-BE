@@ -1,14 +1,19 @@
-// BYO-AI connector management (user-scoped).
-//   POST /connectors/byo-ai   mint a scoped MCP token for a trip (tier=byo)
-//   GET  /connectors          list the caller's connectors (status)
-//   POST /connectors/:id/revoke   revoke a connector
+// BYO-AI connector management (user-scoped) - the "Connected assistants" surface.
+//   POST /connectors/byo-ai            mint a scoped MCP token for a trip (tier=byo)
+//   GET  /connectors                   list the caller's connectors AND OAuth
+//                                       grants, unified by a `kind` field
+//   POST /connectors/:id/revoke        revoke a connector
+//   POST /connectors/grants/:id/revoke revoke an OAuth grant
 //
-// The token is scoped to one trip; the parent adds it to their own ChatGPT /
-// Claude / Gemini as an MCP connector. Tokens are not stored; revocation is via
-// the connector row's revoked_at, which the MCP endpoint checks on every call.
+// A connector token is scoped to one trip; an OAuth grant is account-wide. The
+// parent adds either to their own ChatGPT / Claude / Gemini. Connector tokens are
+// not stored (revoked via connectors.revoked_at); OAuth grants live in
+// oauth_grants (service-role only), so we read/write them with the service client
+// filtered to the caller, and the MCP endpoint checks revoked_at on every call.
 
 import { error, handlePreflight, json } from '../_shared/http.ts';
-import { userContext, UnauthorizedError } from '../_shared/user-client.ts';
+import { UnauthorizedError, userContext } from '../_shared/user-client.ts';
+import { serviceClient } from '../_shared/service-client.ts';
 import { mintToken } from '../_shared/mcp-token.ts';
 
 const DEFAULT_SCOPES = [
@@ -42,15 +47,53 @@ Deno.serve(async (req) => {
     const seg = segments(url);
     const { client, userId } = await userContext(req);
 
-    // GET /connectors
+    // GET /connectors - unified "Connected assistants": per-trip connector tokens
+    // plus account-scoped OAuth grants, each tagged with `kind`.
     if (seg.length === 0 && req.method === 'GET') {
-      const { data, error: dbErr } = await client
+      // Connector tokens (RLS scopes these to the caller).
+      const { data: rows, error: dbErr } = await client
         .from('connectors')
         .select('id, trip_id, label, scopes, last_used_at, revoked_at, created_at')
         .order('created_at', { ascending: false });
       if (dbErr) throw new Error(dbErr.message);
-      const connectors = (data ?? []).map((c) => ({ ...c, status: statusOf(c) }));
-      return json({ connectors });
+      const connectorItems = (rows ?? []).map((c) => ({
+        kind: 'connector' as const,
+        id: c.id,
+        trip_id: c.trip_id,
+        label: c.label,
+        scopes: c.scopes ?? [],
+        last_used_at: c.last_used_at,
+        created_at: c.created_at,
+        status: statusOf(c),
+      }));
+
+      // OAuth grants live in a service-role-only table, so read them with the
+      // service client filtered to this user, and return only a sanitized shape
+      // (no token hashes, no captured Supabase tokens).
+      const { data: grants, error: gErr } = await serviceClient()
+        .from('oauth_grants')
+        .select(
+          'id, scope, last_used_at, revoked_at, created_at, client_id, oauth_clients(client_name)',
+        )
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false });
+      if (gErr) throw new Error(gErr.message);
+      const grantItems = (grants ?? []).map((g) => {
+        const clientRel = g.oauth_clients as { client_name: string | null } | null;
+        return {
+          kind: 'oauth' as const,
+          id: g.id,
+          label: clientRel?.client_name ?? g.client_id,
+          scopes: String(g.scope ?? '')
+            .split(/\s+/)
+            .filter(Boolean),
+          last_used_at: g.last_used_at,
+          created_at: g.created_at,
+          status: statusOf(g),
+        };
+      });
+
+      return json({ connectors: [...connectorItems, ...grantItems] });
     }
 
     // POST /connectors/byo-ai
@@ -94,6 +137,22 @@ Deno.serve(async (req) => {
       });
       const mcpUrl = `${url.origin}/functions/v1/mcp`;
       return json({ connector_id: connector.id, token, mcp_url: mcpUrl }, 201);
+    }
+
+    // POST /connectors/grants/:id/revoke - revoke an OAuth grant. The grant table
+    // is service-role only, so we write with the service client but constrain to
+    // the caller's own rows, and the MCP endpoint honours revoked_at immediately.
+    if (seg.length === 3 && seg[0] === 'grants' && seg[2] === 'revoke' && req.method === 'POST') {
+      const { data, error: dbErr } = await serviceClient()
+        .from('oauth_grants')
+        .update({ revoked_at: new Date().toISOString() })
+        .eq('id', seg[1])
+        .eq('user_id', userId)
+        .select('id')
+        .maybeSingle();
+      if (dbErr) throw new Error(dbErr.message);
+      if (!data) return error('not_found', 'Grant not found.', 404);
+      return json({ id: data.id, status: 'revoked' });
     }
 
     // POST /connectors/:id/revoke
