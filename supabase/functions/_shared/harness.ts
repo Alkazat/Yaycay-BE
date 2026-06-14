@@ -645,6 +645,12 @@ export interface IngestInput {
   hint?: { day_id?: string; moment_id?: string };
   /** Current content, so the model targets the right day/moment. */
   content: TripContent;
+  /**
+   * The family's intent as a short prose brief (see trip-intent.ts), so the
+   * model labels and places a captured item in a way that fits the family.
+   * Empty/undefined when no intent has been captured.
+   */
+  brief?: string;
 }
 
 export interface IngestResult {
@@ -708,10 +714,11 @@ export async function ingest(input: IngestInput): Promise<IngestResult> {
 
   logAiStart('ingest', DEFAULT_MODEL);
   try {
+    const briefBlock = input.brief?.trim() ? `${input.brief.trim()}\n\n` : '';
     const content: unknown[] = [
       {
         type: 'text',
-        text: `Current itinerary and targeting hint:\n${ingestContext(input)}\n\n` +
+        text: `${briefBlock}Current itinerary and targeting hint:\n${ingestContext(input)}\n\n` +
           (input.text ? `Item text:\n${input.text}` : 'See the attached image.'),
       },
     ];

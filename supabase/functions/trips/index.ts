@@ -378,13 +378,16 @@ async function handleIngest(
 
   const destination = await tripDestination(client, tripId);
   const content = await readContent(client, tripId);
+  // Same family brief the chat and the MCP use, so a captured item is labelled
+  // and placed to fit the family.
+  const brief = briefText(await readIntent(client, tripId));
 
   const svc = serviceClient();
   await assertUnderCap(svc, tripId);
   const jobId = await startJob(svc, { userId, tripId, kind: 'ingestion' });
 
   try {
-    const result = await runIngest({ destination, text, image, hint, content });
+    const result = await runIngest({ destination, text, image, hint, content, brief });
 
     const shapeErrors = validatePatchShape(result.patch);
     if (shapeErrors.length > 0) throw new ValidationError(shapeErrors);
