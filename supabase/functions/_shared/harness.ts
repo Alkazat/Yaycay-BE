@@ -242,13 +242,11 @@ async function generateWithClaude(input: DemoDayInput, apiKey: string): Promise<
     system,
     maxTokens: 4096,
     tool: DAY_TOOL,
-    content: `Build one day for this family:\n${
-      JSON.stringify(
-        { destination: input.destination, date: input.date, child: input.child },
-        null,
-        2,
-      )
-    }`,
+    content: `Build one day for this family:\n${JSON.stringify(
+      { destination: input.destination, date: input.date, child: input.child },
+      null,
+      2,
+    )}`,
     surface: 'demo',
   });
   return normaliseDay(data, input);
@@ -337,16 +335,16 @@ function normaliseDay(raw: unknown, input: DemoDayInput): Day {
         slot: isSlot(mm.slot) ? mm.slot : 'anytime',
         title: typeof mm.title === 'string' ? mm.title : `Moment ${mi + 1}`,
         time_hint: typeof mm.time_hint === 'string' ? mm.time_hint : undefined,
-        location: isRecord(mm.location) && typeof mm.location.name === 'string'
-          ? (mm.location as Moment['location'])
-          : undefined,
+        location:
+          isRecord(mm.location) && typeof mm.location.name === 'string'
+            ? (mm.location as Moment['location'])
+            : undefined,
         activities: acts.map((a, ai) => {
           const aa = (a ?? {}) as Record<string, unknown>;
           return {
             id: typeof aa.id === 'string' ? aa.id : `a_${mi + 1}_${ai + 1}`,
-            kind: aa.kind === 'kid' || aa.kind === 'shared' || aa.kind === 'adult'
-              ? aa.kind
-              : 'shared',
+            kind:
+              aa.kind === 'kid' || aa.kind === 'shared' || aa.kind === 'adult' ? aa.kind : 'shared',
             title: typeof aa.title === 'string' ? aa.title : 'Activity',
             body: typeof aa.body === 'string' ? aa.body : undefined,
             facts: stringArray(aa.facts),
@@ -535,9 +533,11 @@ function chatContext(input: PlanChatInput): string {
     moments: (d.moments ?? []).map((m) => ({ id: m.id, slot: m.slot, title: m.title })),
   }));
   const brief = input.brief?.trim() ? `${input.brief.trim()}\n\n` : '';
-  return `${brief}Trip destination: ${input.destination}\nCurrent itinerary (for context):\n${
-    JSON.stringify({ days }, null, 2)
-  }`;
+  return `${brief}Trip destination: ${input.destination}\nCurrent itinerary (for context):\n${JSON.stringify(
+    { days },
+    null,
+    2,
+  )}`;
 }
 
 /**
@@ -718,7 +718,8 @@ export async function ingest(input: IngestInput): Promise<IngestResult> {
     const content: unknown[] = [
       {
         type: 'text',
-        text: `${briefBlock}Current itinerary and targeting hint:\n${ingestContext(input)}\n\n` +
+        text:
+          `${briefBlock}Current itinerary and targeting hint:\n${ingestContext(input)}\n\n` +
           (input.text ? `Item text:\n${input.text}` : 'See the attached image.'),
       },
     ];

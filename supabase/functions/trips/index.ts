@@ -574,9 +574,10 @@ async function handleProgressUpdate(
   for (const id of asStringArray(body.mark_done)) done.add(id);
   for (const id of asStringArray(body.mark_undone)) done.delete(id);
 
-  const activeMode = typeof body.active_mode === 'string'
-    ? body.active_mode
-    : ((existing?.active_mode as string | null | undefined) ?? null);
+  const activeMode =
+    typeof body.active_mode === 'string'
+      ? body.active_mode
+      : ((existing?.active_mode as string | null | undefined) ?? null);
 
   const { data, error: dbErr } = await client
     .from('trip_progress')

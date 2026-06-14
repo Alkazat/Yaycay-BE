@@ -81,11 +81,18 @@ Deno.serve(async (req) => {
         .order('created_at', { ascending: false });
       if (gErr) throw new Error(gErr.message);
       const grantItems = (grants ?? []).map((g) => {
-        const clientRel = g.oauth_clients as { client_name: string | null } | null;
+        // PostgREST types a to-one embed as an array; accept either shape.
+        const rel = g.oauth_clients as unknown as
+          | { client_name: string | null }
+          | { client_name: string | null }[]
+          | null;
+        const clientName = Array.isArray(rel)
+          ? (rel[0]?.client_name ?? null)
+          : (rel?.client_name ?? null);
         return {
           kind: 'oauth' as const,
           id: g.id,
-          label: clientRel?.client_name ?? g.client_id,
+          label: clientName ?? g.client_id,
           scopes: String(g.scope ?? '')
             .split(/\s+/)
             .filter(Boolean),

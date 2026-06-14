@@ -76,10 +76,12 @@ function renderPrompt(
         role: 'user',
         content: {
           type: 'text',
-          text: "First call get_trip_brief to load the family's intent, then propose one " +
+          text:
+            "First call get_trip_brief to load the family's intent, then propose one " +
             'day as a few Moments (morning / midday / afternoon / evening) with a light, ' +
             'realistic pace. Balance kid, shared, and adult activities, respect any ' +
-            'stated constraints and no-gos, and keep it age-appropriate.' + focusLine +
+            'stated constraints and no-gos, and keep it age-appropriate.' +
+            focusLine +
             ' Present the plan for the parent to approve before you add it with the tools.',
         },
       },
@@ -103,14 +105,16 @@ interface ToolDef {
 const TOOLS: ToolDef[] = [
   {
     name: 'get_trip_brief',
-    description: "Read the trip BRIEF: the family's intent (travellers and ages, interests, " +
+    description:
+      "Read the trip BRIEF: the family's intent (travellers and ages, interests, " +
       'pace, budget, must-dos, no-gos, constraints) plus destination and dates. ' +
       'Call this first - plan to the brief, not to generic ideas.',
     inputSchema: { type: 'object', properties: {} },
   },
   {
     name: 'set_trip_brief',
-    description: 'Record or refine the trip brief when you learn what the family wants. ' +
+    description:
+      'Record or refine the trip brief when you learn what the family wants. ' +
       'Only the fields you pass are updated; omit a field to leave it unchanged. ' +
       'Stored as first-class intent and reused by Yaycay beyond this assistant.',
     inputSchema: {
@@ -354,13 +358,16 @@ async function readContent(tid: string): Promise<TripContent> {
 async function readBrief(ctx: Ctx): Promise<string> {
   const db = serviceClient();
   const [{ data: trip }, intent, { data: children }] = await Promise.all([
-    db.from('trips').select('destination, start_date, end_date, tier, status').eq('id', ctx.tid)
+    db
+      .from('trips')
+      .select('destination, start_date, end_date, tier, status')
+      .eq('id', ctx.tid)
       .maybeSingle(),
     readIntent(db, ctx.tid),
-    db.from('child_profiles').select('name, age, mode, interests, dietary, medical').eq(
-      'user_id',
-      ctx.uid,
-    ),
+    db
+      .from('child_profiles')
+      .select('name, age, mode, interests, dietary, medical')
+      .eq('user_id', ctx.uid),
   ]);
   return JSON.stringify({
     trip: trip ?? null,
@@ -429,9 +436,7 @@ async function writeBrief(ctx: Ctx, a: Record<string, unknown>): Promise<string>
     ...(existing ?? {}),
     ...patch,
   };
-  const { error: dbErr } = await db
-    .from('trip_intent')
-    .upsert(row, { onConflict: 'trip_id' });
+  const { error: dbErr } = await db.from('trip_intent').upsert(row, { onConflict: 'trip_id' });
   if (dbErr) throw new Error(dbErr.message);
   const changed = Object.keys(patch);
   return changed.length ? `Brief updated (${changed.join(', ')}).` : 'No brief fields to update.';
