@@ -2,7 +2,8 @@
 // isolated identity store and joined in memory (cross-schema, by user_id).
 
 import { serviceClient } from '../lib/db.ts';
-import { ok, badRequest, notFound } from '../lib/http.ts';
+import { ok, badRequest, notFound, unprocessable } from '../lib/http.ts';
+import { writeAudit } from '../lib/audit.ts';
 import { parsePageParams, page, rangeEnd } from '../lib/pagination.ts';
 import type { AdminContext } from '../lib/auth.ts';
 
@@ -130,6 +131,111 @@ export async function getTripProfiles(
       interests: p.interests ?? [],
     })),
   });
+}
+
+async function tripOwner(db: ReturnType<typeof serviceClient>, id: string): Promise<string> {
+  const { data: trip } = await db.from('trips').select('user_id').eq('id', id).maybeSingle();
+  if (!trip) throw notFound('Trip not found.');
+  return trip.user_id as string;
+}
+
+async function readBody(req: Request): Promise<Record<string, unknown>> {
+  try {
+    return (await req.json()) as Record<string, unknown>;
+  } catch {
+    throw badRequest('Request body must be JSON.');
+  }
+}
+
+const CHAT_COLUMNS = 'id, role, kind, content, meta, seq, created_at';
+const COMPANION_COLUMNS = 'id, near_label, prompt, options, rain_plan, created_at';
+
+// Replace the trip's planning-chat history (admin upload / fixture load).
+export async function uploadTripChat(
+  req: Request,
+  ctx: AdminContext,
+  id: string,
+): Promise<Response> {
+  const db = serviceClient();
+  const ownerId = await tripOwner(db, id);
+  const body = await readBody(req);
+  const messages = Array.isArray(body.messages)
+    ? (body.messages as Record<string, unknown>[])
+    : null;
+  if (!messages) throw unprocessable('messages[] is required');
+
+  const rows = messages.map((m, i) => ({
+    trip_id: id,
+    user_id: ownerId,
+    role: m.role === 'assistant' ? 'assistant' : 'user',
+    kind: m.kind === 'import_chip' ? 'import_chip' : 'text',
+    content: typeof m.content === 'string' ? m.content : '',
+    meta: m.meta ?? null,
+    seq: Number.isInteger(m.seq) ? (m.seq as number) : i,
+  }));
+
+  const { error: delErr } = await db.from('trip_chat_messages').delete().eq('trip_id', id);
+  if (delErr) throw badRequest(delErr.message);
+  if (rows.length > 0) {
+    const { error: insErr } = await db.from('trip_chat_messages').insert(rows);
+    if (insErr) throw badRequest(insErr.message);
+  }
+
+  await writeAudit(ctx, {
+    action: 'trip.chat.upload',
+    targetType: 'trip',
+    targetId: id,
+    after: { count: rows.length },
+  });
+  const { data } = await db
+    .from('trip_chat_messages')
+    .select(CHAT_COLUMNS)
+    .eq('trip_id', id)
+    .order('seq', { ascending: true })
+    .order('created_at', { ascending: true });
+  return ok({ messages: data ?? [] });
+}
+
+// Replace the trip's companion cards (admin upload / fixture load).
+export async function uploadTripCompanion(
+  req: Request,
+  ctx: AdminContext,
+  id: string,
+): Promise<Response> {
+  const db = serviceClient();
+  const ownerId = await tripOwner(db, id);
+  const body = await readBody(req);
+  const cards = Array.isArray(body.cards) ? (body.cards as Record<string, unknown>[]) : null;
+  if (!cards) throw unprocessable('cards[] is required');
+
+  const rows = cards.map((c) => ({
+    trip_id: id,
+    user_id: ownerId,
+    near_label: typeof c.near_label === 'string' ? c.near_label : null,
+    prompt: typeof c.prompt === 'string' ? c.prompt : null,
+    options: Array.isArray(c.options) ? c.options : [],
+    rain_plan: c.rain_plan ?? null,
+  }));
+
+  const { error: delErr } = await db.from('trip_companion_cards').delete().eq('trip_id', id);
+  if (delErr) throw badRequest(delErr.message);
+  if (rows.length > 0) {
+    const { error: insErr } = await db.from('trip_companion_cards').insert(rows);
+    if (insErr) throw badRequest(insErr.message);
+  }
+
+  await writeAudit(ctx, {
+    action: 'trip.companion.upload',
+    targetType: 'trip',
+    targetId: id,
+    after: { count: rows.length },
+  });
+  const { data } = await db
+    .from('trip_companion_cards')
+    .select(COMPANION_COLUMNS)
+    .eq('trip_id', id)
+    .order('created_at', { ascending: true });
+  return ok({ cards: data ?? [] });
 }
 
 export async function getTripProgress(

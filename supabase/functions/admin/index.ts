@@ -77,6 +77,8 @@ async function route(
       if (a && b === 'content' && method === 'GET') return trips.getTripContent(req, ctx, a);
       if (a && b === 'profiles' && method === 'GET') return trips.getTripProfiles(req, ctx, a);
       if (a && b === 'progress' && method === 'GET') return trips.getTripProgress(req, ctx, a);
+      if (a && b === 'chat' && method === 'PUT') return trips.uploadTripChat(req, ctx, a);
+      if (a && b === 'companion' && method === 'PUT') return trips.uploadTripCompanion(req, ctx, a);
       break;
 
     case 'customers':

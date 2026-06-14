@@ -16,9 +16,9 @@
 //
 // Idempotent: re-running upserts the same fixed ids, never duplicates.
 //
-// NOTE (gap, by design): "reopenable planning chat" and seeded companion answers
-// have no back-end store - planning chat is stateless SSE streaming. Those
-// screenshots depend on FE mock/fixture state, not this seed. See README.
+// Also seeds the reopenable planning chat (3 Q&A + a hotel-confirmation chip)
+// and a "what's nearby" companion card into the v0.21 chat/companion store, so
+// screenshots #1/#4/#6/#12 are real (no FE mock needed).
 
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 import content from './walker-singapore.trip-content.json' with { type: 'json' };
@@ -220,6 +220,97 @@ async function main() {
       },
       { onConflict: 'id' },
     );
+    if (error) throw error;
+  }
+
+  // 8. Planning chat history: 3 Q&A + a forwarded hotel-confirmation chip
+  // (reopenable; screenshots #1/#4). Replace-on-reseed for idempotency.
+  {
+    await admin.from('trip_chat_messages').delete().eq('trip_id', TRIP_ID);
+    const messages = [
+      {
+        role: 'assistant',
+        kind: 'text',
+        seq: 0,
+        content: "Hi! I'll help plan your Singapore trip. First - what dates are you travelling?",
+      },
+      { role: 'user', kind: 'text', seq: 1, content: '12-15 May 2026.' },
+      {
+        role: 'assistant',
+        kind: 'text',
+        seq: 2,
+        content: "Great. Who's coming, and any allergies or must-knows?",
+      },
+      {
+        role: 'user',
+        kind: 'text',
+        seq: 3,
+        content:
+          'Two kids - Sam is 9 and loves engineering, Pip is 6. Pip has a serious tree-nut allergy.',
+      },
+      {
+        role: 'assistant',
+        kind: 'text',
+        seq: 4,
+        content:
+          "Noted - I'll flag tree nuts at every meal and add an ask-the-kitchen card. What kind of days do you want?",
+      },
+      {
+        role: 'user',
+        kind: 'text',
+        seq: 5,
+        content: 'A mix of nature and fun, not too rushed, with rain backups.',
+      },
+      {
+        role: 'user',
+        kind: 'import_chip',
+        seq: 6,
+        content: 'Forwarded: hotel confirmation',
+        meta: {
+          hotel: 'Marina Riverside Hotel',
+          checkin: '2026-05-12',
+          checkout: '2026-05-15',
+          ref: 'MRH-4421',
+        },
+      },
+      {
+        role: 'assistant',
+        kind: 'text',
+        seq: 7,
+        content:
+          "Perfect - I've added the Marina Riverside Hotel from your confirmation and built a 4-day plan with tree-nut flags and rain backups.",
+      },
+    ].map((m) => ({ ...m, trip_id: TRIP_ID, user_id: userId }));
+    const { error } = await admin.from('trip_chat_messages').insert(messages);
+    if (error) throw error;
+  }
+
+  // 9. Companion "what's nearby" card: 2 flagged options + a rain plan
+  // (screenshots #6/#12). Allergy always a text label, never "safe".
+  {
+    await admin.from('trip_companion_cards').delete().eq('trip_id', TRIP_ID);
+    const { error } = await admin.from('trip_companion_cards').insert({
+      trip_id: TRIP_ID,
+      user_id: userId,
+      near_label: 'near Gardens by the Bay',
+      prompt: "What's good to eat near here?",
+      options: [
+        {
+          name: 'Satay by the Bay (hawker centre)',
+          flags: ['Tree-nut allergy: flagged', 'Peanut sauce on site'],
+          note: 'Use the ask-the-kitchen card and confirm with each stall before ordering.',
+        },
+        {
+          name: 'Supertree Dining (cafe)',
+          flags: ['Tree-nut allergy: flagged', 'Lower-risk: a la carte kitchen'],
+          note: 'Ask staff to check the dish and prep surfaces before you order.',
+        },
+      ],
+      rain_plan: {
+        title: 'Rain plan: ArtScience Museum',
+        body: '5 min walk - indoor Future World galleries, hands-on for both kids.',
+      },
+    });
     if (error) throw error;
   }
 
