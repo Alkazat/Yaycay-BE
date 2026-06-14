@@ -9,8 +9,13 @@ import { error, handlePreflight, json } from '../_shared/http.ts';
 import { userContext, UnauthorizedError } from '../_shared/user-client.ts';
 
 const PROFILE_COLUMNS =
-  'id, name, avatar, age, mode, interests, dietary, medical, created_at, updated_at';
+  'id, name, avatar, age, mode, type, pin_hash, interests, dietary, medical, created_at, updated_at';
 const EXPLORER_MODES = ['little', 'standard', 'explorer', 'explorer_plus'];
+const PROFILE_TYPES = ['child', 'guardian'];
+
+const PIN_RE = /^\d{4}$/;
+const MAX_PIN_ATTEMPTS = 5;
+const PIN_LOCK_MINUTES = 15;
 
 class ValidationError extends Error {
   constructor(readonly details: string[]) {
@@ -40,6 +45,9 @@ function toProfile(r: Record<string, unknown>): Record<string, unknown> {
     avatar: (r.avatar as string | null) ?? null,
     age: (r.age as number | null) ?? null,
     mode: (r.mode as string | null) ?? null,
+    type: (r.type as string) ?? 'child',
+    // Never return the PIN hash; expose only whether a PIN is configured.
+    pin_set: r.pin_hash != null,
     interests: Array.isArray(r.interests) ? r.interests : [],
     dietary: Array.isArray(r.dietary) ? r.dietary : [],
     medical: Array.isArray(r.medical) ? r.medical : [],
@@ -92,6 +100,11 @@ function parseProfile(
     } else {
       out.mode = body.mode;
     }
+  }
+
+  if (body.type !== undefined) {
+    if (!PROFILE_TYPES.includes(String(body.type))) errs.push('type must be child or guardian');
+    else out.type = body.type;
   }
 
   for (const f of ['interests', 'dietary', 'medical'] as const) {
@@ -170,6 +183,16 @@ Deno.serve(async (req) => {
       return error('method_not_allowed', 'Use PATCH or DELETE.', 405);
     }
 
+    // /profiles/:id/pin - set/change a guardian PIN (write-only).
+    if (seg.length === 2 && seg[1] === 'pin' && req.method === 'POST') {
+      return await setPin(client, seg[0], req);
+    }
+
+    // /profiles/:id/pin/verify - verify the PIN to unlock the Grown-ups view.
+    if (seg.length === 3 && seg[1] === 'pin' && seg[2] === 'verify' && req.method === 'POST') {
+      return await verifyPin(client, seg[0], req);
+    }
+
     return error('not_found', 'No such route.', 404);
   } catch (err) {
     if (err instanceof UnauthorizedError) return error('unauthorized', err.message, 401);
@@ -180,3 +203,119 @@ Deno.serve(async (req) => {
     return error('internal_error', 'Unexpected error.', 500);
   }
 });
+
+// ----- Guardian PIN (Grown-ups gate) ----------------------------------------
+// Set/verify a 4-digit PIN on a guardian profile. The PIN is hashed (PBKDF2)
+// server-side and never returned; verify is rate-limited (lock after N fails).
+// This is a child-safety UX lock, not a hardened boundary (low-entropy by design).
+
+type ProfileClient = Awaited<ReturnType<typeof userContext>>['client'];
+
+async function setPin(client: ProfileClient, id: string, req: Request): Promise<Response> {
+  const body = await readJson(req);
+  const pin = typeof body.pin === 'string' ? body.pin : '';
+  if (!PIN_RE.test(pin)) throw new ValidationError(['pin must be 4 digits']);
+
+  const { data: existing, error: selErr } = await client
+    .from('child_profiles')
+    .select('id, type')
+    .eq('id', id)
+    .maybeSingle();
+  if (selErr) throw new Error(selErr.message);
+  if (!existing) return error('not_found', 'Profile not found.', 404);
+  if (existing.type !== 'guardian') {
+    return error('validation_error', 'A PIN can only be set on a guardian profile.', 422);
+  }
+
+  const pinHash = await hashPin(pin);
+  const { data, error: dbErr } = await client
+    .from('child_profiles')
+    .update({ pin_hash: pinHash, pin_attempts: 0, pin_locked_until: null })
+    .eq('id', id)
+    .select(PROFILE_COLUMNS)
+    .single();
+  if (dbErr) throw new Error(dbErr.message);
+  return json(toProfile(data as Record<string, unknown>));
+}
+
+async function verifyPin(client: ProfileClient, id: string, req: Request): Promise<Response> {
+  const body = await readJson(req);
+  const pin = typeof body.pin === 'string' ? body.pin : '';
+  if (!PIN_RE.test(pin)) throw new ValidationError(['pin must be 4 digits']);
+
+  const { data, error: selErr } = await client
+    .from('child_profiles')
+    .select('id, pin_hash, pin_attempts, pin_locked_until')
+    .eq('id', id)
+    .maybeSingle();
+  if (selErr) throw new Error(selErr.message);
+  if (!data) return error('not_found', 'Profile not found.', 404);
+  if (!data.pin_hash) return error('validation_error', 'No PIN is set for this profile.', 422);
+
+  const lockedUntil = data.pin_locked_until ? new Date(data.pin_locked_until as string) : null;
+  if (lockedUntil && lockedUntil.getTime() > Date.now()) {
+    return error('rate_limited', 'Too many attempts. Try again later.', 429);
+  }
+
+  if (await verifyPinHash(pin, data.pin_hash as string)) {
+    await client
+      .from('child_profiles')
+      .update({ pin_attempts: 0, pin_locked_until: null })
+      .eq('id', id);
+    return json({ verified: true });
+  }
+
+  // Wrong PIN: count the attempt and lock after the cap.
+  const attempts = ((data.pin_attempts as number) ?? 0) + 1;
+  const update =
+    attempts >= MAX_PIN_ATTEMPTS
+      ? {
+          pin_attempts: 0,
+          pin_locked_until: new Date(Date.now() + PIN_LOCK_MINUTES * 60_000).toISOString(),
+        }
+      : { pin_attempts: attempts };
+  await client.from('child_profiles').update(update).eq('id', id);
+  return json({ verified: false });
+}
+
+function toHex(b: Uint8Array): string {
+  return [...b].map((x) => x.toString(16).padStart(2, '0')).join('');
+}
+
+function fromHex(h: string): Uint8Array {
+  const out = new Uint8Array(h.length / 2);
+  for (let i = 0; i < out.length; i++) out[i] = parseInt(h.slice(i * 2, i * 2 + 2), 16);
+  return out;
+}
+
+async function pbkdf2(pin: string, salt: Uint8Array, iterations: number): Promise<Uint8Array> {
+  const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(pin), 'PBKDF2', false, [
+    'deriveBits',
+  ]);
+  const bits = await crypto.subtle.deriveBits(
+    { name: 'PBKDF2', salt, iterations, hash: 'SHA-256' },
+    key,
+    256,
+  );
+  return new Uint8Array(bits);
+}
+
+// Stored as `pbkdf2$<iterations>$<saltHex>$<hashHex>`.
+async function hashPin(pin: string): Promise<string> {
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const hash = await pbkdf2(pin, salt, 100_000);
+  return `pbkdf2$100000$${toHex(salt)}$${toHex(hash)}`;
+}
+
+async function verifyPinHash(pin: string, stored: string): Promise<boolean> {
+  const parts = stored.split('$');
+  if (parts.length !== 4) return false;
+  const iterations = Number(parts[1]);
+  if (!Number.isFinite(iterations)) return false;
+  const actual = toHex(await pbkdf2(pin, fromHex(parts[2]), iterations));
+  const expected = parts[3];
+  if (actual.length !== expected.length) return false;
+  let diff = 0;
+  for (let i = 0; i < actual.length; i++) diff |= actual.charCodeAt(i) ^ expected.charCodeAt(i);
+  return diff === 0;
+}
