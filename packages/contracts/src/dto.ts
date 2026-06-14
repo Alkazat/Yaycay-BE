@@ -111,31 +111,33 @@ export interface TwoFactorVerifyResponse {
   verified: boolean;
 }
 
-// ===== Account (v0.17): the signed-in owner's own account ===================
+// ===== Account (v0.18): the signed-in owner's own account ===================
 
 /**
  * The authenticated owner's account (the parent row, distinct from the per-child
- * `ChildProfile`s). Returned by `GET /account`. Email and role are server-owned;
- * only the recovery email is consumer-mutable (see `AccountUpdate`).
+ * `ChildProfile`s). Returned by `GET /account`. Email and tier are server-owned;
+ * only the secondary (recovery) email is consumer-mutable (see `AccountUpdate`).
  */
 export interface AccountSummary {
   /** Login email (server-owned; changed via the auth flow, not here). */
   email: string;
   /** Secondary email used for password recovery; null when unset. */
-  recoveryEmail: string | null;
+  secondary_email: string | null;
+  /** The account's best entitlement, derived from purchases. */
+  tier: Tier;
   /** Entitlement role. Consumers are always `user`. */
   role: 'user' | 'admin';
   /** Whether the account has enrolled an MFA factor. */
-  twoFactorEnrolled: boolean;
+  two_factor_enrolled: boolean;
   /** When a data-deletion was requested, if ever; null otherwise. */
-  deletionRequestedAt: string | null;
+  deletion_requested_at: string | null;
   /** Account creation timestamp (ISO 8601). */
-  createdAt: string;
+  created_at: string;
 }
 
-/** Body for `PATCH /account`. Send `recoveryEmail: null` to clear it. */
+/** Body for `PATCH /account`. Send `secondary_email: null` to clear it. */
 export interface AccountUpdate {
-  recoveryEmail?: string | null;
+  secondary_email?: string | null;
 }
 
 export interface ApiErrorBody {

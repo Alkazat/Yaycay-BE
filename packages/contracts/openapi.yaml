@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Yaycay API
-  version: 0.17.1
+  version: 0.18.0
   description: >
     Yaycay back-end HTTP API. The v0.1 surface (Phase 0) is the free-demo
     generator, signup/lead capture, the 2FA verify step, and trip + trip-content
@@ -437,10 +437,10 @@ paths:
     patch:
       operationId: updateAccount
       tags: [account]
-      summary: Update the caller's recovery email.
+      summary: Update the caller's secondary (recovery) email.
       description: >
-        The only consumer-mutable account field is the recovery email. Send
-        `recoveryEmail: null` to clear it.
+        The only consumer-mutable account field is the secondary email. Send
+        `secondary_email: null` to clear it.
       security:
         - bearerAuth: []
       requestBody:
@@ -3047,25 +3047,27 @@ components:
     AccountSummary:
       type: object
       additionalProperties: false
-      required: [email, recoveryEmail, role, twoFactorEnrolled, deletionRequestedAt, createdAt]
+      required:
+        [email, secondary_email, tier, role, two_factor_enrolled, deletion_requested_at, created_at]
       properties:
         email: { type: string, format: email }
-        recoveryEmail: { type: [string, 'null'], format: email }
+        secondary_email: { type: [string, 'null'], format: email }
+        tier: { $ref: '#/components/schemas/Tier' }
         role:
           type: string
           enum: [user, admin]
-        twoFactorEnrolled: { type: boolean }
-        deletionRequestedAt: { type: [string, 'null'], format: date-time }
-        createdAt: { type: string, format: date-time }
+        two_factor_enrolled: { type: boolean }
+        deletion_requested_at: { type: [string, 'null'], format: date-time }
+        created_at: { type: string, format: date-time }
 
     AccountUpdate:
       type: object
       additionalProperties: false
       properties:
-        recoveryEmail:
+        secondary_email:
           type: [string, 'null']
           format: email
-          description: New recovery email, or null to clear it.
+          description: New secondary (recovery) email, or null to clear it.
 
     # ===== BYO-AI MCP schemas (v0.6) =====
 

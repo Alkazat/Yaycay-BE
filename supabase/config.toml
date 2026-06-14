@@ -61,7 +61,9 @@ verify_jwt = true
 verify_jwt = true
 
 # Media sign-upload runs as the caller (mints a signed Storage upload URL).
-[functions.media]
+# Deployed as a single hyphenated function because the contract path
+# /media/sign-upload has two segments (first segment = function name).
+[functions.media-sign-upload]
 verify_jwt = true
 
 # Connector management runs as the caller (mints/lists/revokes MCP tokens).
