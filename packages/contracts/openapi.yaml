@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Yaycay API
-  version: 0.20.0
+  version: 0.21.0
   description: >
     Yaycay back-end HTTP API. The v0.1 surface (Phase 0) is the free-demo
     generator, signup/lead capture, the 2FA verify step, and trip + trip-content
@@ -1135,6 +1135,64 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
 
+  /admin/trips/{id}/chat:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    put:
+      operationId: uploadTripChat
+      tags: [admin]
+      summary: Replace the trip's planning-chat history (upload/fixture load).
+      security:
+        - adminAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChatUpload'
+      responses:
+        '200':
+          description: The stored chat messages.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatHistory'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /admin/trips/{id}/companion:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    put:
+      operationId: uploadTripCompanion
+      tags: [admin]
+      summary: Replace the trip's companion cards (upload/fixture load).
+      security:
+        - adminAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CompanionUpload'
+      responses:
+        '200':
+          description: The stored companion cards.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompanionResponse'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
   /admin/customers:
     get:
       operationId: searchCustomers
@@ -1831,6 +1889,44 @@ paths:
           $ref: '#/components/responses/NotFound'
         '422':
           $ref: '#/components/responses/ValidationError'
+
+  /trips/{tripId}/chat:
+    parameters:
+      - $ref: '#/components/parameters/TripId'
+    get:
+      operationId: getTripChat
+      tags: [trips]
+      summary: The trip's reopenable planning-chat history.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: The chat messages, oldest first.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatHistory'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /trips/{tripId}/companion:
+    parameters:
+      - $ref: '#/components/parameters/TripId'
+    get:
+      operationId: getTripCompanion
+      tags: [trips]
+      summary: The trip's pre-loaded "what's nearby" companion cards.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: The companion cards.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompanionResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
 
   /trips/{tripId}/progress:
     parameters:
@@ -3218,6 +3314,119 @@ components:
           type: [string, 'null']
           format: email
           description: New secondary (recovery) email, or null to clear it.
+
+    # ===== Planning chat + companion schemas (v0.21) =====
+
+    ChatHistoryMessage:
+      type: object
+      additionalProperties: false
+      required: [id, role, kind, content, seq, created_at]
+      properties:
+        id: { type: string }
+        role: { type: string, enum: [user, assistant] }
+        kind: { type: string, enum: [text, import_chip] }
+        content: { type: string }
+        meta: { type: [object, 'null'], additionalProperties: true }
+        seq: { type: integer }
+        created_at: { type: string, format: date-time }
+
+    ChatHistory:
+      type: object
+      additionalProperties: false
+      required: [messages]
+      properties:
+        messages:
+          type: array
+          items: { $ref: '#/components/schemas/ChatHistoryMessage' }
+
+    ChatHistoryMessageInput:
+      type: object
+      additionalProperties: false
+      required: [role]
+      properties:
+        role: { type: string, enum: [user, assistant] }
+        kind: { type: string, enum: [text, import_chip] }
+        content: { type: string }
+        meta: { type: [object, 'null'], additionalProperties: true }
+        seq: { type: integer }
+
+    ChatUpload:
+      type: object
+      additionalProperties: false
+      required: [messages]
+      properties:
+        messages:
+          type: array
+          items: { $ref: '#/components/schemas/ChatHistoryMessageInput' }
+
+    CompanionOption:
+      type: object
+      additionalProperties: false
+      required: [name, flags]
+      properties:
+        name: { type: string }
+        flags:
+          type: array
+          items: { type: string }
+        note: { type: string }
+
+    CompanionRainPlan:
+      type: object
+      additionalProperties: false
+      required: [title, body]
+      properties:
+        title: { type: string }
+        body: { type: string }
+
+    CompanionCard:
+      type: object
+      additionalProperties: false
+      required: [id, options, created_at]
+      properties:
+        id: { type: string }
+        near_label: { type: [string, 'null'] }
+        prompt: { type: [string, 'null'] }
+        options:
+          type: array
+          items: { $ref: '#/components/schemas/CompanionOption' }
+        rain_plan:
+          oneOf:
+            - { $ref: '#/components/schemas/CompanionRainPlan' }
+            - { type: 'null' }
+        created_at: { type: string, format: date-time }
+
+    CompanionResponse:
+      type: object
+      additionalProperties: false
+      required: [cards]
+      properties:
+        cards:
+          type: array
+          items: { $ref: '#/components/schemas/CompanionCard' }
+
+    CompanionCardInput:
+      type: object
+      additionalProperties: false
+      required: [options]
+      properties:
+        near_label: { type: [string, 'null'] }
+        prompt: { type: [string, 'null'] }
+        options:
+          type: array
+          items: { $ref: '#/components/schemas/CompanionOption' }
+        rain_plan:
+          oneOf:
+            - { $ref: '#/components/schemas/CompanionRainPlan' }
+            - { type: 'null' }
+
+    CompanionUpload:
+      type: object
+      additionalProperties: false
+      required: [cards]
+      properties:
+        cards:
+          type: array
+          items: { $ref: '#/components/schemas/CompanionCardInput' }
 
     # ===== BYO-AI MCP schemas (v0.6) =====
 
