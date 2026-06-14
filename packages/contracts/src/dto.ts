@@ -140,6 +140,84 @@ export interface AccountUpdate {
   secondary_email?: string | null;
 }
 
+// ===== Planning chat + companion (v0.21) ===================================
+
+export type ChatRole = 'user' | 'assistant';
+/** `import_chip` is a forwarded confirmation card (e.g. a hotel booking). */
+export type ChatHistoryMessageKind = 'text' | 'import_chip';
+
+/**
+ * A persisted planning-chat turn (`GET /trips/{id}/chat`). Distinct from the
+ * streaming-request `ChatMessage` (v0.3); this is the stored, reopenable record.
+ */
+export interface ChatHistoryMessage {
+  id: string;
+  role: ChatRole;
+  kind: ChatHistoryMessageKind;
+  content: string;
+  meta?: Record<string, unknown> | null;
+  seq: number;
+  created_at: string;
+}
+
+export interface ChatHistory {
+  messages: ChatHistoryMessage[];
+}
+
+/** One message for `PUT /admin/trips/{id}/chat`. */
+export interface ChatHistoryMessageInput {
+  role: ChatRole;
+  kind?: ChatHistoryMessageKind;
+  content?: string;
+  meta?: Record<string, unknown> | null;
+  seq?: number;
+}
+
+/** Body for `PUT /admin/trips/{id}/chat` (replaces the trip's chat). */
+export interface ChatUpload {
+  messages: ChatHistoryMessageInput[];
+}
+
+/** A nearby option in a companion card; `flags` carries the allergy text label. */
+export interface CompanionOption {
+  name: string;
+  flags: string[];
+  note?: string;
+}
+
+/** One-tap indoor fallback shown on a companion card. */
+export interface CompanionRainPlan {
+  title: string;
+  body: string;
+}
+
+/** A pre-loaded "what's nearby" card (`GET /trips/{id}/companion`). */
+export interface CompanionCard {
+  id: string;
+  near_label?: string | null;
+  prompt?: string | null;
+  options: CompanionOption[];
+  rain_plan?: CompanionRainPlan | null;
+  created_at: string;
+}
+
+export interface CompanionResponse {
+  cards: CompanionCard[];
+}
+
+/** One card for `PUT /admin/trips/{id}/companion`. */
+export interface CompanionCardInput {
+  near_label?: string | null;
+  prompt?: string | null;
+  options: CompanionOption[];
+  rain_plan?: CompanionRainPlan | null;
+}
+
+/** Body for `PUT /admin/trips/{id}/companion` (replaces the trip's cards). */
+export interface CompanionUpload {
+  cards: CompanionCardInput[];
+}
+
 export interface ApiErrorBody {
   error: {
     code: string;
