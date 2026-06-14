@@ -59,7 +59,8 @@ async function readBody(req: Request): Promise<Record<string, unknown>> {
   }
 }
 
-const SELECT = 'id, actor_id, actor_email, target_user_id, target_email, reason, mode, started_at, expires_at, ended_at, ended_reason';
+const SELECT =
+  'id, actor_id, actor_email, target_user_id, target_email, reason, mode, started_at, expires_at, ended_at, ended_reason';
 
 // Best-known tier + latest retention across a customer's trips (mirrors the
 // /admin/customers entitlement derivation).
@@ -257,10 +258,22 @@ export async function getSupportSessionSnapshot(
 
   const uid = row.target_user_id;
   const [acct, ent, profilesRes, tripsRes] = await Promise.all([
-    db.schema('identity').from('accounts').select('user_id, email, deletion_requested_at').eq('user_id', uid).maybeSingle(),
+    db
+      .schema('identity')
+      .from('accounts')
+      .select('user_id, email, deletion_requested_at')
+      .eq('user_id', uid)
+      .maybeSingle(),
     entitlement(db, uid),
-    db.from('child_profiles').select('id, name, age, type, pin_hash, interests, medical').eq('user_id', uid),
-    db.from('trips').select('id, destination, tier, status, start_date, end_date, retention_expires_at').eq('user_id', uid).order('created_at', { ascending: false }),
+    db
+      .from('child_profiles')
+      .select('id, name, age, type, pin_hash, interests, medical')
+      .eq('user_id', uid),
+    db
+      .from('trips')
+      .select('id, destination, tier, status, start_date, end_date, retention_expires_at')
+      .eq('user_id', uid)
+      .order('created_at', { ascending: false }),
   ]);
 
   const account = acct.data;
