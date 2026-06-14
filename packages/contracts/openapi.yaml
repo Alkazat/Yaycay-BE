@@ -1618,11 +1618,11 @@ paths:
     post:
       operationId: setProfilePin
       tags: [trips]
-      summary: Set or change a guardian PIN (write-only).
+      summary: Set or change a parent/carer PIN (write-only).
       description: >
-        Sets the 4-digit Grown-ups PIN on a guardian profile. The PIN is hashed
+        Sets the 4-digit Grown-ups PIN on a parent_carer profile. The PIN is hashed
         server-side and never returned; the response carries the profile with
-        `pin_set: true`. 422 if the profile is not a guardian.
+        `pin_set: true`. 422 if the profile is not a parent_carer.
       security:
         - bearerAuth: []
       requestBody:
@@ -1654,11 +1654,12 @@ paths:
     post:
       operationId: verifyProfilePin
       tags: [trips]
-      summary: Verify the guardian PIN (unlock Grown-ups for the session).
+      summary: Verify the parent/carer PIN (unlock Grown-ups for the session).
       description: >
-        Returns `{ verified }`. A wrong PIN is `200 { verified: false }` and
-        counts toward the attempt cap; too many failures returns `429` until the
-        lock window passes. 422 if no PIN is set.
+        Returns `{ verified, attempts_remaining, locked_until }` (always `200`). A
+        wrong PIN is `verified: false` and counts toward the attempt cap;
+        `attempts_remaining` reaches `0` and `locked_until` is set once the cap is
+        hit, and stays set until the lock window passes. 422 if no PIN is set.
       security:
         - bearerAuth: []
       requestBody:
@@ -1680,8 +1681,6 @@ paths:
           $ref: '#/components/responses/NotFound'
         '422':
           $ref: '#/components/responses/ValidationError'
-        '429':
-          $ref: '#/components/responses/RateLimited'
 
   /trips/{tripId}/progress:
     parameters:
@@ -2049,12 +2048,12 @@ components:
     ExplorerMode:
       type: string
       enum: [little, standard, explorer, explorer_plus]
-      description: 'Voice/age band. Child: little|explorer|explorer_plus; standard = guardian voice.'
+      description: 'Voice/age band. Child: little|explorer|explorer_plus; standard = parent/carer voice.'
 
     ProfileType:
       type: string
-      enum: [child, guardian]
-      description: Who the profile belongs to (child → Explorers; guardian → Grown-ups, PIN-gated).
+      enum: [child, parent_carer]
+      description: Who the profile belongs to (child → Explorers; parent_carer → Grown-ups, PIN-gated).
 
     ChildProfile:
       type: object
@@ -2070,7 +2069,7 @@ components:
         type: { $ref: '#/components/schemas/ProfileType' }
         pin_set:
           type: boolean
-          description: Whether a guardian PIN is configured (read-only; the PIN is never returned).
+          description: Whether a parent/carer PIN is configured (read-only; the PIN is never returned).
         interests: { type: array, items: { type: string } }
         dietary:
           type: array
@@ -2108,9 +2107,16 @@ components:
     PinVerifyResponse:
       type: object
       additionalProperties: false
-      required: [verified]
+      required: [verified, attempts_remaining, locked_until]
       properties:
         verified: { type: boolean }
+        attempts_remaining:
+          type: integer
+          description: Attempts left before lockout; 0 when locked (or on the attempt that locks).
+        locked_until:
+          type: string
+          nullable: true
+          description: ISO timestamp when the lock lifts, or null when not locked.
 
     TripProgress:
       type: object
@@ -3266,7 +3272,7 @@ components:
     AdminChildProfile:
       type: object
       additionalProperties: false
-      required: [id, name, interests]
+      required: [id, name, type, pin_set, interests]
       properties:
         id: { type: string }
         name: { type: string }
@@ -3274,6 +3280,10 @@ components:
         mode:
           type: string
           enum: [little, standard, explorer, explorer_plus]
+        type: { $ref: '#/components/schemas/ProfileType' }
+        pin_set:
+          type: boolean
+          description: Whether a parent/carer PIN is configured (read-only; the PIN is never returned).
         interests:
           type: array
           items: { type: string }

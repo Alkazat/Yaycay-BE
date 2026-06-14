@@ -118,8 +118,8 @@ server-resolved (not a claim). Audit sink is `public.admin_audit_log`
 | `GET/POST /trips/:id/journal` | `JournalEntry` incl. `mood`, 1-5 `stars`, `day_id` (POST paid) | ✅ served (v0.6; mood/stars v0.10; day_id v0.14) |
 | `POST /media/sign-upload` | `SignUploadResponse` (signed Storage URL, paid) | ✅ served (v0.6) |
 | `POST /connectors/byo-ai` · `GET /connectors` · `POST /mcp` | BYO-AI MCP (tier=byo) | ✅ served (v0.6) |
-| `GET /profiles` · `POST /profiles` · `PATCH/DELETE /profiles/:id` | `ChildProfile` (CRUD; incl. `type` child/guardian + `pin_set`) | ✅ served (v0.9; type/pin v0.15) |
-| `POST /profiles/:id/pin` · `POST /profiles/:id/pin/verify` | guardian PIN set + verify (hashed, rate-limited; `PinVerifyResponse`) | ✅ served (v0.15) |
+| `GET /profiles` · `POST /profiles` · `PATCH/DELETE /profiles/:id` | `ChildProfile` (CRUD; incl. `type` child/parent_carer + `pin_set`) | ✅ served (v0.9; type/pin v0.17) |
+| `POST /profiles/:id/pin` · `POST /profiles/:id/pin/verify` | parent/carer PIN set + verify (hashed, rate-limited; `PinVerifyResponse` w/ attempts_remaining + locked_until) | ✅ served (v0.17) |
 | `GET /trips/:id/progress` · `PATCH /trips/:id/progress` | `TripProgress` (per-profile done + active mode) | ✅ served (v0.9) |
 | `GET /trips/:id/stars` · `POST /trips/:id/stars/claim` | `StarsResponse` · `StarClaimResponse` (idempotent per child/day/source) | ✅ served (v0.11) |
 | `GET /trips/:id/packing` · `PATCH /trips/:id/packing` | `PackingResponse` `{ lists }`; PATCH action = tick\|add\|delete\|reset, returns the whole collection | ✅ served (v0.12) |
