@@ -61,20 +61,6 @@ function env(name: string): string {
   return v;
 }
 
-async function findUserId(
-  admin: ReturnType<typeof createClient>,
-  email: string,
-): Promise<string | null> {
-  for (let page = 1; page <= 50; page++) {
-    const { data, error } = await admin.auth.admin.listUsers({ page, perPage: 200 });
-    if (error) throw error;
-    const hit = data.users.find((u) => (u.email ?? '').toLowerCase() === email.toLowerCase());
-    if (hit) return hit.id;
-    if (data.users.length < 200) break;
-  }
-  return null;
-}
-
 async function main() {
   const url = env('SUPABASE_URL');
   const serviceKey = env('SUPABASE_SERVICE_ROLE_KEY');
@@ -97,7 +83,14 @@ async function main() {
   if (created.data?.user) {
     userId = created.data.user.id;
   } else {
-    userId = await findUserId(admin, EMAIL);
+    // Already registered: find the user id by paging the admin list.
+    for (let page = 1; page <= 50 && !userId; page++) {
+      const { data, error } = await admin.auth.admin.listUsers({ page, perPage: 200 });
+      if (error) throw error;
+      const hit = data.users.find((u) => (u.email ?? '').toLowerCase() === EMAIL.toLowerCase());
+      if (hit) userId = hit.id;
+      if (data.users.length < 200) break;
+    }
     if (userId) {
       // Make sure the password matches the vault on re-run.
       await admin.auth.admin.updateUserById(userId, { password: PASSWORD, email_confirm: true });
