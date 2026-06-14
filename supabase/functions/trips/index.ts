@@ -174,6 +174,37 @@ Deno.serve(async (req) => {
           .maybeSingle();
         if (!trip) throw new NotFoundError();
 
+        // A connector-driven write (FE MCP server forwards x-yaycay-source) must
+        // be observable + capped + reviewed, like any external-model mutation.
+        const fromConnector = req.headers.get('x-yaycay-source') === 'connector';
+        if (fromConnector) {
+          const svc = serviceClient();
+          await assertUnderCap(svc, tripId);
+          const { data, error: dbErr } = await client
+            .from('trip_content')
+            .upsert({ trip_id: tripId, user_id: userId, content: body }, { onConflict: 'trip_id' })
+            .select('content')
+            .single();
+          if (dbErr) throw new Error(dbErr.message);
+          const jobId = await startJob(svc, {
+            userId,
+            tripId,
+            kind: 'ingestion',
+            model: 'byo',
+            source: 'connector',
+            connectorId: req.headers.get('x-yaycay-connector-id'),
+            assistant: req.headers.get('x-yaycay-assistant'),
+          });
+          await finishJob(svc, jobId, 'succeeded');
+          await svc
+            .from('content_review')
+            .upsert(
+              { trip_id: tripId, status: 'pending', generated_at: new Date().toISOString() },
+              { onConflict: 'trip_id' },
+            );
+          return json(data.content);
+        }
+
         const { data, error: dbErr } = await client
           .from('trip_content')
           .upsert({ trip_id: tripId, user_id: userId, content: body }, { onConflict: 'trip_id' })

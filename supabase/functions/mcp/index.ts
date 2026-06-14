@@ -223,8 +223,17 @@ async function mutate(ctx: Ctx, next: TripContent, summary: string): Promise<str
     tripId: ctx.tid,
     kind: 'ingestion',
     model: 'byo',
+    source: 'connector',
   });
   await finishJob(db, jobId, 'succeeded');
+  // External (BYO) content has no guardrail of ours, so it must still hit the
+  // review bar: (re-)flag the trip for content review.
+  await db
+    .from('content_review')
+    .upsert(
+      { trip_id: ctx.tid, status: 'pending', generated_at: new Date().toISOString() },
+      { onConflict: 'trip_id' },
+    );
   return summary;
 }
 
