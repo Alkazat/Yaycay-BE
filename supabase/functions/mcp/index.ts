@@ -1,11 +1,18 @@
 // POST /mcp - the authenticated BYO-AI MCP endpoint (gateway verify_jwt=false).
 //
-// Auth is a connector token (Authorization: Bearer <token>), not a Supabase JWT.
-// The token is verified and its connector row resolved (must be active); every
-// tool is scoped to that connector's single trip. Writes reuse the shared
-// TripContentPatch apply path and are re-validated against the schema. No
-// model is called here (the parent's own AI drives the tools), so there is no
-// cost to us; each write is logged to ai_jobs for the audit trail.
+// Auth is a bearer token (Authorization: Bearer <token>), dual-accepted by
+// verifyMcpToken: a per-trip connector token or an account-scoped OAuth grant.
+// Writes reuse the shared TripContentPatch apply path and are re-validated
+// against the schema. No model is called here (the parent's own AI drives the
+// tools), so there is no cost to us; each write is logged to ai_jobs for the
+// audit trail.
+//
+// The endpoint is self-describing: initialize returns Yaycay's content model and
+// planning philosophy as `instructions`, and get_trip_brief surfaces the trip's
+// intent (the "why" - travellers, pace, must-dos) so the external assistant plans
+// with context, not just raw structure. Intent is captured in trip_intent and
+// shared with Yaycay's own curation; serving/curation stays first-party (off the
+// MCP) - see docs/handoff/MCP-CONTEXT-AND-INTENT.md.
 
 import { json } from '../_shared/http.ts';
 import { serviceClient } from '../_shared/service-client.ts';
@@ -17,6 +24,30 @@ import { finishJob, startJob } from '../_shared/ai-jobs.ts';
 
 const SERVER_INFO = { name: 'yaycay-byo-ai', version: '1.0.0' };
 const EMPTY: TripContent = { trip: {} as TripContent['trip'], days: [] };
+
+// Returned from `initialize` so the connecting assistant understands Yaycay
+// before it touches a tool: the content model, the planning philosophy, and how
+// to use the tools well. Keep it short and stable - it frames every later call.
+const INSTRUCTIONS = [
+  'You are helping plan a family holiday in Yaycay.',
+  '',
+  'Content model: a Holiday has Days; each Day has Moments (time-of-day blocks:',
+  'morning, midday, afternoon, evening, night, anytime); each Moment has',
+  'Activities. An Activity has a kind: "kid", "shared", or "adult".',
+  '',
+  "Start with get_trip_brief to learn the family's intent (who is travelling,",
+  'their ages and interests, the pace and budget they want, must-dos and no-gos).',
+  'Plan to that brief, not to generic ideas. If you learn something new about what',
+  'the family wants, record it with set_trip_brief so Yaycay remembers it.',
+  '',
+  'Planning philosophy: age-appropriate and realistically paced - a few good',
+  'Moments a day beat an over-stuffed schedule. Respect nap windows and stated',
+  'constraints. Balance kid, shared, and adult activities. Honour avoid/no-gos.',
+  '',
+  'Use list_days to see structure, get_trip to read full content, then the',
+  'add/update/move tools to build the itinerary. Account-scoped tokens must pass',
+  'trip_id on every call; per-trip connector tokens may omit it.',
+].join('\n');
 
 function rpcResult(id: unknown, result: unknown): Response {
   return json({ jsonrpc: '2.0', id, result });
@@ -32,6 +63,32 @@ interface ToolDef {
 }
 
 const TOOLS: ToolDef[] = [
+  {
+    name: 'get_trip_brief',
+    description: "Read the trip BRIEF: the family's intent (travellers and ages, interests, " +
+      'pace, budget, must-dos, no-gos, constraints) plus destination and dates. ' +
+      'Call this first - plan to the brief, not to generic ideas.',
+    inputSchema: { type: 'object', properties: {} },
+  },
+  {
+    name: 'set_trip_brief',
+    description: 'Record or refine the trip brief when you learn what the family wants. ' +
+      'Only the fields you pass are updated; omit a field to leave it unchanged. ' +
+      'Stored as first-class intent and reused by Yaycay beyond this assistant.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        pace: { type: 'string', enum: ['relaxed', 'balanced', 'packed'] },
+        budget: { type: 'string', enum: ['budget', 'moderate', 'premium', 'splurge'] },
+        travellers: { type: 'array', items: { type: 'object' } },
+        interests: { type: 'array', items: { type: 'string' } },
+        must_do: { type: 'array', items: { type: 'string' } },
+        avoid: { type: 'array', items: { type: 'string' } },
+        notes: { type: 'string' },
+        constraints: { type: 'object' },
+      },
+    },
+  },
   {
     name: 'get_trip',
     description: 'Read the full trip content (Holiday -> Days -> Moments -> Activities).',
@@ -195,6 +252,7 @@ Deno.serve(async (req) => {
       protocolVersion: '2024-11-05',
       capabilities: { tools: {} },
       serverInfo: SERVER_INFO,
+      instructions: INSTRUCTIONS,
     });
   }
   if (method === 'notifications/initialized' || method === 'ping') {
@@ -228,6 +286,83 @@ async function readContent(tid: string): Promise<TripContent> {
     .eq('trip_id', tid)
     .maybeSingle();
   return (data?.content as TripContent) ?? EMPTY;
+}
+
+// The trip brief: the "why" behind the trip, captured in trip_intent and shared
+// with Yaycay's own curation. Only set_trip_brief writes it; get_trip_brief
+// assembles it with the trip header so the assistant plans with context.
+interface TripIntent {
+  pace?: string | null;
+  budget?: string | null;
+  travellers?: unknown[];
+  interests?: string[];
+  must_do?: string[];
+  avoid?: string[];
+  notes?: string | null;
+  constraints?: Record<string, unknown>;
+}
+
+const INTENT_FIELDS = [
+  'pace',
+  'budget',
+  'travellers',
+  'interests',
+  'must_do',
+  'avoid',
+  'notes',
+  'constraints',
+] as const;
+
+async function readBrief(ctx: Ctx): Promise<string> {
+  const db = serviceClient();
+  const [{ data: trip }, { data: intent }, { data: children }] = await Promise.all([
+    db.from('trips').select('destination, start_date, end_date, tier, status').eq('id', ctx.tid)
+      .maybeSingle(),
+    db.from('trip_intent').select(INTENT_FIELDS.join(', ')).eq('trip_id', ctx.tid).maybeSingle(),
+    db.from('child_profiles').select('name, age, mode, interests, dietary, medical').eq(
+      'user_id',
+      ctx.uid,
+    ),
+  ]);
+  return JSON.stringify({
+    trip: trip ?? null,
+    // Account-level child profiles, offered as a seed for the trip's travellers.
+    child_profiles: children ?? [],
+    intent: intent ?? null,
+    note: intent
+      ? undefined
+      : 'No brief captured yet. Ask the family about pace, interests, must-dos, ' +
+        'and who is travelling, then record it with set_trip_brief.',
+  });
+}
+
+async function writeBrief(ctx: Ctx, a: Record<string, unknown>): Promise<string> {
+  // Patch semantics: only the provided fields are written, the rest are left as
+  // they are. We merge over the existing row so an omitted field is untouched.
+  const db = serviceClient();
+  const { data: existing } = await db
+    .from('trip_intent')
+    .select(INTENT_FIELDS.join(', '))
+    .eq('trip_id', ctx.tid)
+    .maybeSingle();
+
+  const patch: TripIntent = {};
+  for (const f of INTENT_FIELDS) {
+    if (a[f] !== undefined) (patch as Record<string, unknown>)[f] = a[f];
+  }
+
+  const row = {
+    trip_id: ctx.tid,
+    user_id: ctx.uid,
+    ...(existing as TripIntent ?? {}),
+    ...patch,
+  };
+  const { error: dbErr } = await db
+    .from('trip_intent')
+    .upsert(row, { onConflict: 'trip_id' });
+  if (dbErr) throw new Error(dbErr.message);
+  const changed = Object.keys(patch);
+  return changed.length ? `Brief updated (${changed.join(', ')}).` : 'No brief fields to update.';
 }
 
 // Apply a mutation, re-validate, persist, and log the BYO write. Returns a short
@@ -265,6 +400,10 @@ async function applyOps(ctx: Ctx, patch: TripContentPatch, summary: string): Pro
 async function callTool(rawCtx: Ctx, name: string, a: Record<string, unknown>): Promise<string> {
   const ctx = await resolveTrip(rawCtx, a);
   switch (name) {
+    case 'get_trip_brief':
+      return readBrief(ctx);
+    case 'set_trip_brief':
+      return writeBrief(ctx, a);
     case 'get_trip':
       return JSON.stringify(await readContent(ctx.tid));
     case 'list_days': {

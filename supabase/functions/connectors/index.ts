@@ -17,6 +17,8 @@ import { serviceClient } from '../_shared/service-client.ts';
 import { mintToken } from '../_shared/mcp-token.ts';
 
 const DEFAULT_SCOPES = [
+  'get_trip_brief',
+  'set_trip_brief',
   'get_trip',
   'list_days',
   'add_activity',
