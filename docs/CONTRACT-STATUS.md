@@ -17,7 +17,7 @@ GitHub Packages registry for the `@alkazat` scope:
 @alkazat:registry=https://npm.pkg.github.com
 ```
 
-Current version: **`0.14.0`**. Pin `@alkazat/contracts@^0.14.0` (the admin surface
+Current version: **`0.15.0`**. Pin `@alkazat/contracts@^0.15.0` (the admin surface
 that earlier handoffs called `^0.2.0` ships within this range).
 
 GitHub Packages requires auth to install **even public packages**. Each consumer
@@ -118,7 +118,8 @@ server-resolved (not a claim). Audit sink is `public.admin_audit_log`
 | `GET/POST /trips/:id/journal` | `JournalEntry` incl. `mood`, 1-5 `stars`, `day_id` (POST paid) | ✅ served (v0.6; mood/stars v0.10; day_id v0.14) |
 | `POST /media/sign-upload` | `SignUploadResponse` (signed Storage URL, paid) | ✅ served (v0.6) |
 | `POST /connectors/byo-ai` · `GET /connectors` · `POST /mcp` | BYO-AI MCP (tier=byo) | ✅ served (v0.6) |
-| `GET /profiles` · `POST /profiles` · `PATCH/DELETE /profiles/:id` | `ChildProfile` (CRUD) | ✅ served (v0.9) |
+| `GET /profiles` · `POST /profiles` · `PATCH/DELETE /profiles/:id` | `ChildProfile` (CRUD; incl. `type` child/guardian + `pin_set`) | ✅ served (v0.9; type/pin v0.15) |
+| `POST /profiles/:id/pin` · `POST /profiles/:id/pin/verify` | guardian PIN set + verify (hashed, rate-limited; `PinVerifyResponse`) | ✅ served (v0.15) |
 | `GET /trips/:id/progress` · `PATCH /trips/:id/progress` | `TripProgress` (per-profile done + active mode) | ✅ served (v0.9) |
 | `GET /trips/:id/stars` · `POST /trips/:id/stars/claim` | `StarsResponse` · `StarClaimResponse` (idempotent per child/day/source) | ✅ served (v0.11) |
 | `GET /trips/:id/packing` · `PATCH /trips/:id/packing` | `PackingResponse` `{ lists }`; PATCH action = tick\|add\|delete\|reset, returns the whole collection | ✅ served (v0.12) |

@@ -297,14 +297,21 @@ export interface ByoConnectorResponse {
 
 // ===== Profiles + progress (v0.9) ==========================================
 
-/** A child on the account. Gates the per-child experience (modes, journal, stars). */
+/** Who a profile belongs to. `child` → Explorers view; `guardian` → Grown-ups (PIN-gated). */
+export type ProfileType = 'child' | 'guardian';
+
+/** A profile on the account. Gates the per-profile experience (type, mode, journal, stars). */
 export interface ChildProfile {
   id: string;
   name: string;
   avatar?: string | null;
   age?: number | null;
-  /** Default explorer mode for this child. */
+  /** Voice / age band. Child bands: little|explorer|explorer_plus; `standard` is the guardian voice. */
   mode?: ExplorerMode | null;
+  /** Who the profile is. Defaults to `child`. */
+  type: ProfileType;
+  /** Whether a guardian PIN is configured. Read-only; the PIN itself is never returned. */
+  pin_set: boolean;
   interests: string[];
   /** Dietary flags surfaced to adults as content safety notes. */
   dietary: string[];
@@ -325,9 +332,22 @@ export interface ChildProfileInput {
   avatar?: string | null;
   age?: number | null;
   mode?: ExplorerMode | null;
+  /** Defaults to `child` on create. */
+  type?: ProfileType;
   interests?: string[];
   dietary?: string[];
   medical?: string[];
+}
+
+/** Request body for `POST /profiles/{id}/pin` and `POST /profiles/{id}/pin/verify`. */
+export interface PinRequest {
+  /** A 4-digit PIN. */
+  pin: string;
+}
+
+/** Response for `POST /profiles/{id}/pin/verify`. */
+export interface PinVerifyResponse {
+  verified: boolean;
 }
 
 /** Per-profile state for a trip: which items are done and the active mode. */
