@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Yaycay API
-  version: 0.14.0
+  version: 0.15.0
   description: >
     Yaycay back-end HTTP API. The v0.1 surface (Phase 0) is the free-demo
     generator, signup/lead capture, the 2FA verify step, and trip + trip-content
@@ -1401,6 +1401,80 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
+  /profiles/{profileId}/pin:
+    parameters:
+      - name: profileId
+        in: path
+        required: true
+        schema: { type: string }
+    post:
+      operationId: setProfilePin
+      tags: [trips]
+      summary: Set or change a guardian PIN (write-only).
+      description: >
+        Sets the 4-digit Grown-ups PIN on a guardian profile. The PIN is hashed
+        server-side and never returned; the response carries the profile with
+        `pin_set: true`. 422 if the profile is not a guardian.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PinRequest'
+      responses:
+        '200':
+          description: The profile after the PIN was set.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChildProfile'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /profiles/{profileId}/pin/verify:
+    parameters:
+      - name: profileId
+        in: path
+        required: true
+        schema: { type: string }
+    post:
+      operationId: verifyProfilePin
+      tags: [trips]
+      summary: Verify the guardian PIN (unlock Grown-ups for the session).
+      description: >
+        Returns `{ verified }`. A wrong PIN is `200 { verified: false }` and
+        counts toward the attempt cap; too many failures returns `429` until the
+        lock window passes. 422 if no PIN is set.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PinRequest'
+      responses:
+        '200':
+          description: Verification result.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PinVerifyResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+
   /trips/{tripId}/progress:
     parameters:
       - $ref: '#/components/parameters/TripId'
@@ -1767,12 +1841,17 @@ components:
     ExplorerMode:
       type: string
       enum: [little, standard, explorer, explorer_plus]
-      description: The child-facing difficulty/voice band.
+      description: 'Voice/age band. Child: little|explorer|explorer_plus; standard = guardian voice.'
+
+    ProfileType:
+      type: string
+      enum: [child, guardian]
+      description: Who the profile belongs to (child → Explorers; guardian → Grown-ups, PIN-gated).
 
     ChildProfile:
       type: object
       additionalProperties: false
-      required: [id, name, interests, dietary, medical, created_at, updated_at]
+      required: [id, name, type, pin_set, interests, dietary, medical, created_at, updated_at]
       properties:
         id: { type: string }
         name: { type: string }
@@ -1780,6 +1859,10 @@ components:
         age: { type: integer, nullable: true }
         mode:
           oneOf: [{ $ref: '#/components/schemas/ExplorerMode' }, { type: 'null' }]
+        type: { $ref: '#/components/schemas/ProfileType' }
+        pin_set:
+          type: boolean
+          description: Whether a guardian PIN is configured (read-only; the PIN is never returned).
         interests: { type: array, items: { type: string } }
         dietary:
           type: array
@@ -1795,16 +1878,31 @@ components:
     ChildProfileInput:
       type: object
       additionalProperties: false
-      description: Create (name required) or update (all optional) a child profile.
+      description: Create (name required) or update (all optional) a profile.
       properties:
         name: { type: string }
         avatar: { type: string, nullable: true }
         age: { type: integer, nullable: true, minimum: 0, maximum: 18 }
         mode:
           oneOf: [{ $ref: '#/components/schemas/ExplorerMode' }, { type: 'null' }]
+        type: { $ref: '#/components/schemas/ProfileType' }
         interests: { type: array, items: { type: string } }
         dietary: { type: array, items: { type: string } }
         medical: { type: array, items: { type: string } }
+
+    PinRequest:
+      type: object
+      additionalProperties: false
+      required: [pin]
+      properties:
+        pin: { type: string, description: A 4-digit PIN. }
+
+    PinVerifyResponse:
+      type: object
+      additionalProperties: false
+      required: [verified]
+      properties:
+        verified: { type: boolean }
 
     TripProgress:
       type: object
