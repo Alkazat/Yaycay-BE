@@ -17,7 +17,7 @@ GitHub Packages registry for the `@alkazat` scope:
 @alkazat:registry=https://npm.pkg.github.com
 ```
 
-Current version: **`0.15.0`**. Pin `@alkazat/contracts@^0.15.0` (the admin surface
+Current version: **`0.16.0`**. Pin `@alkazat/contracts@^0.16.0` (the admin surface
 that earlier handoffs called `^0.2.0` ships within this range).
 
 GitHub Packages requires auth to install **even public packages**. Each consumer
@@ -129,6 +129,7 @@ server-resolved (not a claim). Audit sink is `public.admin_audit_log`
 | `POST /admin/products` | `ProductSummary` (add a catalogue product) | ✅ served (v0.8) |
 | `PATCH /admin/products/:priceId` | `ProductSummary` (edit price/kind/entitlement/active) | ✅ served (v0.8) |
 | `GET /admin/admins` · `POST /admin/admins` | `AdminAccount` (list admins; set role by email — 404 if no account yet) | ✅ served (v0.14) |
+| `GET/POST /admin/affiliates` · `GET/PATCH /admin/affiliates/:code` · `GET …/redemptions` · `POST …/report` | affiliate program: create (Stripe coupon+promo), pause, attributed redemptions, monthly Brevo report | ✅ served (v0.16) |
 | `POST /checkout/session` | `CheckoutSessionResponse` (Stripe Checkout URL) | ✅ served (v0.5) |
 | `POST /webhooks/stripe` | `{ received }` (tier flip **or** keep-token retention extension) | ✅ served (v0.5/v0.8) |
 
