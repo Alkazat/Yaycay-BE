@@ -99,12 +99,15 @@ async function main() {
   if (!userId) throw new Error('Could not create or find the demo auth user.');
   console.log(`auth user: ${userId} (${EMAIL})`);
 
-  // 2. Identity account: flag as demo (the row exists via the new-user trigger).
+  // 2. Identity account: flag as demo. The row already exists (created by the
+  // new-user trigger), and service_role has UPDATE (not INSERT) on the isolated
+  // identity schema - so update in place rather than upsert.
   {
     const { error } = await admin
       .schema('identity')
       .from('accounts')
-      .upsert({ user_id: userId, email: EMAIL, is_demo: true }, { onConflict: 'user_id' });
+      .update({ is_demo: true })
+      .eq('user_id', userId);
     if (error) throw error;
   }
 

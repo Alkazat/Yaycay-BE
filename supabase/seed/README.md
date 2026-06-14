@@ -33,8 +33,12 @@ SUPABASE_URL=https://nzmjkbjtcjthjwdscjrj.supabase.co \
 SUPABASE_SERVICE_ROLE_KEY=<service-role-key> \
 DEMO_WALKER_PASSWORD=<vault password> \
 DEMO_WALKER_PIN=<4-digit pin> \
-deno run --allow-env --allow-net supabase/seed/walker-demo.ts
+deno run -A supabase/seed/walker-demo.ts
 ```
+
+(The `-A` allows env/net/read-write; the colocated `deno.json` here turns on
+`nodeModulesDir: auto` so the Supabase library's npm sub-deps install on first
+run. If `deno` isn't on your PATH after install, call it as `~/.deno/bin/deno`.)
 
 - **Service role key**: Supabase Dashboard -> Project Settings -> API ->
   `service_role` (secret). Do not commit it.
