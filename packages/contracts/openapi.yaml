@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Yaycay API
-  version: 0.19.0
+  version: 0.20.0
   description: >
     Yaycay back-end HTTP API. The v0.1 surface (Phase 0) is the free-demo
     generator, signup/lead capture, the 2FA verify step, and trip + trip-content
@@ -1174,6 +1174,115 @@ paths:
                 $ref: '#/components/schemas/CustomerSummary'
         '403':
           $ref: '#/components/responses/Forbidden'
+
+  /admin/deletion-requests:
+    get:
+      operationId: listDeletionRequests
+      tags: [admin]
+      summary: The data-deletion queue (accounts that asked to be deleted).
+      description: >
+        Accounts with a deletion request, oldest first, each with its data
+        footprint and grace status.
+      security:
+        - adminAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: A page of deletion requests.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeletionRequestPage'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/deletion-requests/{userId}:
+    parameters:
+      - name: userId
+        in: path
+        required: true
+        schema: { type: string }
+    get:
+      operationId: getDeletionRequest
+      tags: [admin]
+      summary: Verify one deletion request (data footprint before acting).
+      security:
+        - adminAuth: []
+      responses:
+        '200':
+          description: The deletion request and footprint.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeletionRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /admin/deletion-requests/{userId}/cancel:
+    parameters:
+      - name: userId
+        in: path
+        required: true
+        schema: { type: string }
+    post:
+      operationId: cancelDeletionRequest
+      tags: [admin]
+      summary: Cancel a pending deletion request.
+      security:
+        - adminAuth: []
+      responses:
+        '200':
+          description: The request was cleared.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CancelDeletionResult'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /admin/deletion-requests/{userId}/execute:
+    parameters:
+      - name: userId
+        in: path
+        required: true
+        schema: { type: string }
+    post:
+      operationId: executeDeletion
+      tags: [admin]
+      summary: Hard-delete the account (irreversible).
+      description: >
+        Deletes the auth user (cascades trips/journal/profiles; purchases survive
+        anonymized). Requires `email` to match the account (confirm-by-typing)
+        and is blocked inside the 30-day grace window unless `force: true`.
+      security:
+        - adminAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExecuteDeletionRequest'
+      responses:
+        '200':
+          description: The account was deleted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeletionResult'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Within the grace period and not forced.
+        '422':
+          $ref: '#/components/responses/ValidationError'
 
   /admin/content-review:
     get:
@@ -3426,6 +3535,73 @@ components:
           minimum: 1
           nullable: true
         active: { type: boolean }
+
+    DeletionRequest:
+      type: object
+      additionalProperties: false
+      required:
+        [userId, email, requestedAt, ageDays, eligibleAt, eligible, tier, trips, media, purchases]
+      properties:
+        userId: { type: string }
+        email: { type: string, format: email }
+        requestedAt: { type: string, format: date-time }
+        ageDays: { type: integer }
+        eligibleAt: { type: string, format: date-time }
+        eligible: { type: boolean }
+        tier: { type: [string, 'null'] }
+        trips: { type: integer }
+        media: { type: integer }
+        purchases: { type: integer }
+
+    DeletionRequestPage:
+      type: object
+      additionalProperties: false
+      required: [items, nextCursor]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/DeletionRequest' }
+        nextCursor: { type: [string, 'null'] }
+
+    ExecuteDeletionRequest:
+      type: object
+      additionalProperties: false
+      required: [email]
+      properties:
+        email:
+          type: string
+          format: email
+          description: Must match the account email (confirm-by-typing).
+        force:
+          type: boolean
+          description: Override the 30-day grace period.
+
+    DeletionResult:
+      type: object
+      additionalProperties: false
+      required: [deleted, userId, email, footprint]
+      properties:
+        deleted: { type: boolean, enum: [true] }
+        userId: { type: string }
+        email: { type: string, format: email }
+        footprint:
+          type: object
+          additionalProperties: false
+          required: [tier, trips, media, purchases]
+          properties:
+            tier: { type: [string, 'null'] }
+            trips: { type: integer }
+            media: { type: integer }
+            purchases: { type: integer }
+
+    CancelDeletionResult:
+      type: object
+      additionalProperties: false
+      required: [userId, email, cancelled]
+      properties:
+        userId: { type: string }
+        email: { type: string, format: email }
+        cancelled: { type: boolean, enum: [true] }
 
     CheckoutSessionRequest:
       type: object
