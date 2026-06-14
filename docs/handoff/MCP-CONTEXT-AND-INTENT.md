@@ -22,9 +22,13 @@ before it touches a tool. Keep it short and stable; it is read once per session.
 
 Two new tools surface and capture intent:
 
-- `get_trip_brief` - returns the trip header (destination, dates, tier), the
-  account's child profiles (offered as a seed for travellers), and the captured
-  intent. Assistants are told to call this first and plan to the brief.
+- `get_trip_brief` - returns the trip header (destination, dates, tier), a
+  minimised child-profile seed for travellers (name, age, mode, interests only;
+  dietary and medical are deliberately not exported off-platform to the external
+  assistant), and the captured intent. Assistants are told to call this first and
+  plan to the brief. The family conveys any dietary/medical considerations
+  deliberately via `set_trip_brief` constraints, which they control, rather than
+  having them auto-shared from account profiles.
 - `set_trip_brief` - patch-writes intent when the assistant learns what the
   family wants (only the fields passed are updated). This is the capture path:
   understanding gathered during a chat becomes durable, structured data.
@@ -80,6 +84,12 @@ the right trip and understands each one. Scopes map cleanly: `yaycay.read` reads
 the brief, `yaycay.plan` writes structure and intent; serving-side concerns
 (`yaycay.book`, `yaycay.journal`) stay gated or first-party.
 
+Connector tool-name scopes (`CONNECTOR_DEFAULT_SCOPES`) are enforced per tool at
+`tools/call`: a connector may invoke only the tools present in its
+`connectors.scopes` row (a `-32002` error otherwise). Connectors are minted with
+the full default set today, so behaviour is unchanged, but any narrowed grant
+issued by FE or ADMIN is now actually enforced rather than advisory.
+
 ## Status
 
 - SHIPPED: `initialize` instructions + capabilities (tools/resources/prompts);
@@ -89,6 +99,9 @@ the brief, `yaycay.plan` writes structure and intent; serving-side concerns
   `trip_intent` via the shared `_shared/trip-intent.ts` module and feeds the
   family's brief into the planning companion's context - the same brief the MCP
   exposes, so both paths plan to one understanding.
+- SHIPPED: `get_trip_brief` minimises the child-profile seed (name, age, mode,
+  interests only; no dietary/medical exported off-platform), and connector
+  tool-name scopes are enforced per tool at `tools/call`.
 - NEXT: have the demo/ingest curation surfaces read `trip_intent` too; optionally
   seed `travellers` from `child_profiles` on first brief read; consider exposing
   the brief resource via `resources/templates` for clients that prefer templated
