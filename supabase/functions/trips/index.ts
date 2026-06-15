@@ -283,6 +283,20 @@ Deno.serve(async (req) => {
       return error('method_not_allowed', 'Use GET or PATCH.', 405);
     }
 
+    // /trips/:id/reservations - the family's track-and-confirm booking record
+    // (no payments). POST adds one; PATCH /:rid moves status / edits fields.
+    if (seg.length === 2 && seg[1] === 'reservations') {
+      if (req.method === 'GET') return await handleReservationsList(client, tripId);
+      if (req.method === 'POST') return await handleReservationCreate(client, userId, tripId, req);
+      return error('method_not_allowed', 'Use GET or POST.', 405);
+    }
+    if (seg.length === 3 && seg[1] === 'reservations') {
+      if (req.method === 'PATCH') {
+        return await handleReservationUpdate(client, tripId, seg[2], req);
+      }
+      return error('method_not_allowed', 'Use PATCH.', 405);
+    }
+
     return error('not_found', 'No such route.', 404);
   } catch (err) {
     if (err instanceof UnauthorizedError) {
@@ -533,6 +547,98 @@ async function handleCompanionList(client: UserClient, tripId: string): Promise<
     .order('created_at', { ascending: true });
   if (dbErr) throw new Error(dbErr.message);
   return json({ cards: data ?? [] });
+}
+
+const RESERVATION_COLUMNS =
+  'id, trip_id, kind, title, when_text, location, ref, status, notes, created_at, updated_at';
+const RESERVATION_KINDS = ['hotel', 'activity', 'flight', 'transport', 'dining', 'other'];
+const RESERVATION_STATUSES = ['planned', 'booked', 'confirmed', 'cancelled'];
+
+// The family's track-and-confirm booking record (no payments). RLS scopes rows
+// to the owner.
+async function handleReservationsList(client: UserClient, tripId: string): Promise<Response> {
+  const { data, error: dbErr } = await client
+    .from('trip_reservations')
+    .select(RESERVATION_COLUMNS)
+    .eq('trip_id', tripId)
+    .order('created_at', { ascending: true });
+  if (dbErr) throw new Error(dbErr.message);
+  return json({ reservations: data ?? [] });
+}
+
+async function handleReservationCreate(
+  client: UserClient,
+  userId: string,
+  tripId: string,
+  req: Request,
+): Promise<Response> {
+  const body = await readJson(req);
+  const title = typeof body.title === 'string' ? body.title.trim() : '';
+  if (!title) throw new ValidationError(['title is required']);
+  const kind =
+    typeof body.kind === 'string' && RESERVATION_KINDS.includes(body.kind) ? body.kind : 'activity';
+  const status =
+    typeof body.status === 'string' && RESERVATION_STATUSES.includes(body.status)
+      ? body.status
+      : 'planned';
+  const whenText =
+    typeof body.when === 'string'
+      ? body.when
+      : typeof body.when_text === 'string'
+        ? body.when_text
+        : null;
+  const { data, error: dbErr } = await client
+    .from('trip_reservations')
+    .insert({
+      trip_id: tripId,
+      user_id: userId,
+      kind,
+      title,
+      when_text: whenText,
+      location: typeof body.location === 'string' ? body.location : null,
+      ref: typeof body.ref === 'string' ? body.ref : null,
+      status,
+      notes: typeof body.notes === 'string' ? body.notes : null,
+    })
+    .select(RESERVATION_COLUMNS)
+    .single();
+  if (dbErr) throw new Error(dbErr.message);
+  return json({ reservation: data });
+}
+
+async function handleReservationUpdate(
+  client: UserClient,
+  tripId: string,
+  reservationId: string,
+  req: Request,
+): Promise<Response> {
+  const body = await readJson(req);
+  const patch: Record<string, unknown> = {};
+  if (typeof body.status === 'string') {
+    if (!RESERVATION_STATUSES.includes(body.status)) throw new ValidationError(['invalid status']);
+    patch.status = body.status;
+  }
+  if (typeof body.kind === 'string') {
+    if (!RESERVATION_KINDS.includes(body.kind)) throw new ValidationError(['invalid kind']);
+    patch.kind = body.kind;
+  }
+  if (typeof body.title === 'string') patch.title = body.title.trim();
+  if (typeof body.when === 'string') patch.when_text = body.when;
+  else if (typeof body.when_text === 'string') patch.when_text = body.when_text;
+  for (const f of ['location', 'ref', 'notes'] as const) {
+    if (typeof body[f] === 'string') patch[f] = body[f];
+  }
+  if (Object.keys(patch).length === 0) throw new ValidationError(['no fields to update']);
+  const { data, error: dbErr } = await client
+    .from('trip_reservations')
+    .update(patch)
+    .eq('id', reservationId)
+    .eq('trip_id', tripId)
+    .select(RESERVATION_COLUMNS)
+    .maybeSingle();
+  if (dbErr) throw new Error(dbErr.message);
+  if (!data) throw new NotFoundError();
+  return json({ reservation: data });
 }
 
 async function handleJournalCreate(
