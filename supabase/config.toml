@@ -74,6 +74,10 @@ verify_jwt = true
 [functions.profiles]
 verify_jwt = true
 
+# Public product catalogue (paywall reads it pre-login; holds no secrets).
+[functions.catalogue]
+verify_jwt = false
+
 # The owner's own account row (read + recovery-email update); JWT-verified.
 [functions.account]
 verify_jwt = true

@@ -39,8 +39,27 @@ Deno.serve(async (req) => {
       return error('validation_error', 'Request body must be JSON.', 422);
     }
 
-    const priceId = typeof body.price_id === 'string' ? body.price_id.trim() : '';
-    if (!priceId) return error('validation_error', 'price_id is required.', 422, ['price_id']);
+    let priceId = typeof body.price_id === 'string' ? body.price_id.trim() : '';
+    // The FE may send a stable catalogue product_id instead; resolve it to this
+    // environment's live Stripe price via product_catalogue.
+    const productId = typeof body.product_id === 'string' ? body.product_id.trim() : '';
+    if (!priceId && productId) {
+      const { data: cat } = await client
+        .from('product_catalogue')
+        .select('stripe_price_id, active')
+        .eq('product_id', productId)
+        .maybeSingle();
+      if (!cat || !cat.active || !cat.stripe_price_id) {
+        return error('unknown_price', 'Product is not available for purchase.', 400, [productId]);
+      }
+      priceId = cat.stripe_price_id as string;
+    }
+    if (!priceId) {
+      return error('validation_error', 'price_id or product_id is required.', 422, [
+        'price_id',
+        'product_id',
+      ]);
+    }
 
     const successUrl =
       (typeof body.success_url === 'string' && body.success_url) ||
