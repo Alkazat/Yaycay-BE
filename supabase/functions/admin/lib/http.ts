@@ -56,3 +56,5 @@ export const notFound = (detail = 'Resource not found.') =>
 export const badRequest = (detail: string) => new ProblemError(400, 'Bad Request', detail);
 export const unprocessable = (detail: string) =>
   new ProblemError(422, 'Unprocessable Entity', detail);
+export const conflict = (detail: string) => new ProblemError(409, 'Conflict', detail);
+export const gone = (detail: string) => new ProblemError(410, 'Gone', detail);
