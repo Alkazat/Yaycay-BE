@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Yaycay API
-  version: 0.22.0
+  version: 0.25.0
   description: >
     Yaycay back-end HTTP API. The v0.1 surface (Phase 0) is the free-demo
     generator, signup/lead capture, the 2FA verify step, and trip + trip-content
@@ -462,6 +462,23 @@ paths:
           $ref: '#/components/responses/NotFound'
         '422':
           $ref: '#/components/responses/ValidationError'
+
+  /account/transactions:
+    get:
+      operationId: getAccountTransactions
+      tags: [account]
+      summary: The caller's purchase history (newest first).
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: The caller's transactions.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TransactionsResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
 
   /account/deletion-request:
     post:
@@ -3345,9 +3362,19 @@ components:
       type: object
       additionalProperties: false
       required:
-        [email, secondary_email, tier, role, two_factor_enrolled, deletion_requested_at, created_at]
+        [
+          email,
+          name,
+          secondary_email,
+          tier,
+          role,
+          two_factor_enrolled,
+          deletion_requested_at,
+          created_at,
+        ]
       properties:
         email: { type: string, format: email }
+        name: { type: [string, 'null'] }
         secondary_email: { type: [string, 'null'], format: email }
         tier: { $ref: '#/components/schemas/Tier' }
         role:
@@ -3361,10 +3388,34 @@ components:
       type: object
       additionalProperties: false
       properties:
+        name:
+          type: [string, 'null']
+          maxLength: 120
+          description: Display name; trimmed; null or empty clears it.
         secondary_email:
           type: [string, 'null']
           format: email
           description: New secondary (recovery) email, or null to clear it.
+
+    Transaction:
+      type: object
+      additionalProperties: false
+      required: [id, date, description, amount_usd, status]
+      properties:
+        id: { type: string }
+        date: { type: string, format: date-time }
+        description: { type: string }
+        amount_usd: { type: number }
+        status: { type: string, enum: [paid, refunded, pending] }
+
+    TransactionsResponse:
+      type: object
+      additionalProperties: false
+      required: [transactions]
+      properties:
+        transactions:
+          type: array
+          items: { $ref: '#/components/schemas/Transaction' }
 
     # ===== Planning chat + companion schemas (v0.21) =====
 

@@ -121,6 +121,8 @@ export interface TwoFactorVerifyResponse {
 export interface AccountSummary {
   /** Login email (server-owned; changed via the auth flow, not here). */
   email: string;
+  /** Optional display name (Settings); null when unset. */
+  name: string | null;
   /** Secondary email used for password recovery; null when unset. */
   secondary_email: string | null;
   /** The account's best entitlement, derived from purchases. */
@@ -135,9 +137,25 @@ export interface AccountSummary {
   created_at: string;
 }
 
-/** Body for `PATCH /account`. Send `secondary_email: null` to clear it. */
+/** Body for `PATCH /account`. Send a field as `null`/`""` to clear it. */
 export interface AccountUpdate {
+  /** Display name; trimmed, max 120 chars; `null`/`""` clears. */
+  name?: string | null;
   secondary_email?: string | null;
+}
+
+/** A line in the account's purchase history (`GET /account/transactions`). */
+export interface Transaction {
+  id: string;
+  /** ISO 8601 timestamp. */
+  date: string;
+  description: string;
+  amount_usd: number;
+  status: 'paid' | 'refunded' | 'pending';
+}
+
+export interface TransactionsResponse {
+  transactions: Transaction[];
 }
 
 // ===== Planning chat + companion (v0.21) ===================================
