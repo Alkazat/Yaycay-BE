@@ -20,7 +20,7 @@ import { userContext, UnauthorizedError } from '../_shared/user-client.ts';
 import { serviceClient } from '../_shared/service-client.ts';
 
 const ACCOUNT_COLUMNS =
-  'email, name, recovery_email, role, two_factor_enrolled, deletion_requested_at, created_at';
+  'email, name, recovery_email, role, two_factor_enrolled, deletion_requested_at, retention_expires_at, created_at';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const NAME_MAX = 120;
@@ -48,6 +48,7 @@ interface AccountRow {
   role: string;
   two_factor_enrolled: boolean;
   deletion_requested_at: string | null;
+  retention_expires_at: string | null;
   created_at: string;
 }
 
@@ -60,6 +61,9 @@ function toAccount(r: AccountRow, tier: Tier) {
     role: r.role,
     two_factor_enrolled: r.two_factor_enrolled,
     deletion_requested_at: r.deletion_requested_at ?? null,
+    // Account-level keep ("keep my memories"): all the customer's data is
+    // retained until this date; null = default per-trip disposal applies.
+    data_kept_until: r.retention_expires_at ?? null,
     created_at: r.created_at,
   };
 }

@@ -26,12 +26,26 @@ Deno.serve(async (req) => {
 
   try {
     const db = serviceClient();
-    const { data, error: delErr } = await db
+    const nowIso = new Date().toISOString();
+
+    // Account-level keep: never dispose a trip whose owner has an active account
+    // retention date. Resolve those owners first, then exclude them.
+    const { data: kept } = await db
+      .schema('identity')
+      .from('accounts')
+      .select('user_id')
+      .gte('retention_expires_at', nowIso);
+    const protectedIds = (kept ?? []).map((a) => a.user_id as string);
+
+    let q = db
       .from('trips')
       .delete()
       .not('retention_expires_at', 'is', null)
-      .lt('retention_expires_at', new Date().toISOString())
-      .select('id');
+      .lt('retention_expires_at', nowIso);
+    if (protectedIds.length > 0) {
+      q = q.not('user_id', 'in', `(${protectedIds.join(',')})`);
+    }
+    const { data, error: delErr } = await q.select('id');
     if (delErr) throw new Error(delErr.message);
     return json({ disposed: data?.length ?? 0 }, 200);
   } catch (err) {

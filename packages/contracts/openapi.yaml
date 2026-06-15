@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Yaycay API
-  version: 0.26.0
+  version: 0.27.0
   description: >
     Yaycay back-end HTTP API. The v0.1 surface (Phase 0) is the free-demo
     generator, signup/lead capture, the 2FA verify step, and trip + trip-content
@@ -3386,6 +3386,7 @@ components:
           role,
           two_factor_enrolled,
           deletion_requested_at,
+          data_kept_until,
           created_at,
         ]
       properties:
@@ -3398,6 +3399,7 @@ components:
           enum: [user, admin]
         two_factor_enrolled: { type: boolean }
         deletion_requested_at: { type: [string, 'null'], format: date-time }
+        data_kept_until: { type: [string, 'null'], format: date-time }
         created_at: { type: string, format: date-time }
 
     AccountUpdate:

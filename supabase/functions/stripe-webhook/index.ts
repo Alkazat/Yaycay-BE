@@ -93,8 +93,8 @@ async function handleCheckoutCompleted(event: Record<string, unknown>): Promise<
   }
 
   // First time we have seen this session: confer the entitlement.
-  if (tripId && kind === 'keep') {
-    await extendRetention(db, tripId, Number(metadata.extends_months));
+  if (kind === 'keep') {
+    await extendAccountRetention(db, userId, Number(metadata.extends_months));
   } else if (tripId && tier) {
     const { error: updErr } = await db.from('trips').update({ tier }).eq('id', tripId);
     if (updErr) throw new Error(updErr.message);
@@ -102,34 +102,36 @@ async function handleCheckoutCompleted(event: Record<string, unknown>): Promise<
 }
 
 /**
- * Push a trip's disposal date forward by `months`, measured from the later of
- * now and its current expiry, so a keep-token always extends retention. Mirrors
- * app.extend_trip_retention; done here over the service role to avoid exposing
- * the app schema to PostgREST.
+ * Push the account's data-retention date forward by `months`, measured from the
+ * later of now and the current expiry, so a keep-token always extends it. This
+ * is account-level: one keep purchase preserves all of the customer's trips.
+ * Mirrors app.extend_account_retention; done over the service role here.
  */
-async function extendRetention(
+async function extendAccountRetention(
   db: ReturnType<typeof serviceClient>,
-  tripId: string,
+  userId: string | null,
   months: number,
 ): Promise<void> {
-  if (!Number.isInteger(months) || months <= 0) return;
-  const { data: trip, error: selErr } = await db
-    .from('trips')
+  if (!userId || !Number.isInteger(months) || months <= 0) return;
+  const { data: acct, error: selErr } = await db
+    .schema('identity')
+    .from('accounts')
     .select('retention_expires_at')
-    .eq('id', tripId)
+    .eq('user_id', userId)
     .maybeSingle();
   if (selErr) throw new Error(selErr.message);
-  if (!trip) return;
+  if (!acct) return;
 
   const now = new Date();
-  const current = trip.retention_expires_at ? new Date(trip.retention_expires_at) : null;
+  const current = acct.retention_expires_at ? new Date(acct.retention_expires_at) : null;
   const from = current && current > now ? current : now;
   const next = new Date(from);
   next.setMonth(next.getMonth() + months);
 
   const { error: updErr } = await db
-    .from('trips')
+    .schema('identity')
+    .from('accounts')
     .update({ retention_expires_at: next.toISOString() })
-    .eq('id', tripId);
+    .eq('user_id', userId);
   if (updErr) throw new Error(updErr.message);
 }
