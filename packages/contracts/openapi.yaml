@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Yaycay API
-  version: 0.23.0
+  version: 0.25.0
   description: >
     Yaycay back-end HTTP API. The v0.1 surface (Phase 0) is the free-demo
     generator, signup/lead capture, the 2FA verify step, and trip + trip-content

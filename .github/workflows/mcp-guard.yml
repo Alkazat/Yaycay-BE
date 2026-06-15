@@ -1,0 +1,91 @@
+name: MCP impact guard
+
+# Catches any PR that touches an MCP-sensitive surface (intent, context, data,
+# scopes, tools, auth) and requires an explicit acknowledgement before merge, so
+# MCP implications are never shipped unnoticed. The hard manifest-drift check
+# lives in the contracts:validate step (packages/contracts/scripts/validate.mjs);
+# this job is the cross-repo detection + checklist gate. See
+# docs/handoff/MCP-CHANGE-PROTOCOL.md.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled, edited]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  mcp-impact:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: detect
+        name: Detect MCP-sensitive changes
+        run: |
+          base='${{ github.event.pull_request.base.sha }}'
+          head='${{ github.event.pull_request.head.sha }}'
+          changed=$(git diff --name-only "$base" "$head" || true)
+          echo "Changed files:"; printf '%s\n' "$changed"
+          # MCP surfaces: the endpoint + connectors, the shared MCP/intent/content
+          # modules, OAuth/connector/intent/content migrations, and the manifest.
+          regex='^supabase/functions/(mcp|connectors)/|^supabase/functions/_shared/(mcp-|trip-intent|content-types|trip-patch)|^supabase/migrations/.*(oauth|trip_intent|connectors|trip_content)|^packages/contracts/src/(mcp-surface|trip-content)|^packages/contracts/schemas/trip-content'
+          if printf '%s\n' "$changed" | grep -qE "$regex"; then
+            echo "touched=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "touched=false" >> "$GITHUB_OUTPUT"
+            echo "No MCP-sensitive paths changed."
+          fi
+      - if: steps.detect.outputs.touched == 'true'
+        name: Checklist + acknowledgement gate
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const marker = '<!-- mcp-impact-guard -->';
+            const ackLabel = 'mcp-impact: reviewed';
+            const body = [
+              marker,
+              '### MCP impact checklist',
+              '',
+              'This PR touches an MCP-sensitive surface. Confirm each dimension, then either',
+              `add the **\`${ackLabel}\`** label or tick \`- [x] MCP impact reviewed\` in the PR description.`,
+              '',
+              '- **Intent** - does this change what the family wants/`trip_intent`? Update the manifest + `set/get_trip_brief`.',
+              '- **Context** - does it change the brief/`instructions`/content model the assistant sees?',
+              '- **Data** - schema change to `oauth_*`, `connectors`, `trip_intent`, `trip_content`? Migration + RLS + manifest.',
+              '- **Scopes** - new/changed scope vocabulary? Update `MCP_OAUTH_SCOPES` and any enforcement.',
+              '- **Tools** - tool added/renamed/removed? Update `MCP_TOOLS` + connector default scopes (the drift check enforces parity).',
+              '- **Auth** - any change to `verifyMcpToken`, the OAuth grant/token lifecycle, or revocation?',
+              '- **Cross-repo propagation** - what must change in BE / FE / ADMIN to match? Link the companion PRs.',
+              '- **Stakeholders** - who needs to know (FE AS, ADMIN console, curation)? Loop them in.',
+              '',
+              'Manifest source of truth: `packages/contracts/src/mcp-surface.ts`. Protocol: `docs/handoff/MCP-CHANGE-PROTOCOL.md`.',
+            ].join('\n');
+
+            const { owner, repo } = context.repo;
+            const issue_number = context.payload.pull_request.number;
+
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner, repo, issue_number,
+            });
+            const existing = comments.find((c) => c.body && c.body.includes(marker));
+            if (existing) {
+              await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
+            } else {
+              await github.rest.issues.createComment({ owner, repo, issue_number, body });
+            }
+
+            const labels = (context.payload.pull_request.labels || []).map((l) => l.name);
+            const prBody = context.payload.pull_request.body || '';
+            const acked = labels.includes(ackLabel) || /\[x\]\s*MCP impact reviewed/i.test(prBody);
+            if (!acked) {
+              core.setFailed(
+                `MCP-sensitive paths changed. Complete the checklist, then add the "${ackLabel}" ` +
+                  'label (or tick "- [x] MCP impact reviewed" in the PR description) to merge.',
+              );
+            } else {
+              core.info('MCP impact acknowledged.');
+            }

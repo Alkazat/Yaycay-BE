@@ -500,6 +500,12 @@ export interface PlanChatInput {
   destination: string;
   /** The current trip content, given to the model as planning context. */
   content: TripContent;
+  /**
+   * The family's intent, rendered as a short prose brief (see trip-intent.ts).
+   * Same brief the BYO-AI MCP exposes, so first-party chat plans to the same
+   * understanding. Empty/undefined when no intent has been captured yet.
+   */
+  brief?: string;
   messages: ChatMessage[];
 }
 
@@ -526,7 +532,8 @@ function chatContext(input: PlanChatInput): string {
     label: d.label,
     moments: (d.moments ?? []).map((m) => ({ id: m.id, slot: m.slot, title: m.title })),
   }));
-  return `Trip destination: ${input.destination}\nCurrent itinerary (for context):\n${JSON.stringify(
+  const brief = input.brief?.trim() ? `${input.brief.trim()}\n\n` : '';
+  return `${brief}Trip destination: ${input.destination}\nCurrent itinerary (for context):\n${JSON.stringify(
     { days },
     null,
     2,
@@ -638,6 +645,12 @@ export interface IngestInput {
   hint?: { day_id?: string; moment_id?: string };
   /** Current content, so the model targets the right day/moment. */
   content: TripContent;
+  /**
+   * The family's intent as a short prose brief (see trip-intent.ts), so the
+   * model labels and places a captured item in a way that fits the family.
+   * Empty/undefined when no intent has been captured.
+   */
+  brief?: string;
 }
 
 export interface IngestResult {
@@ -701,11 +714,12 @@ export async function ingest(input: IngestInput): Promise<IngestResult> {
 
   logAiStart('ingest', DEFAULT_MODEL);
   try {
+    const briefBlock = input.brief?.trim() ? `${input.brief.trim()}\n\n` : '';
     const content: unknown[] = [
       {
         type: 'text',
         text:
-          `Current itinerary and targeting hint:\n${ingestContext(input)}\n\n` +
+          `${briefBlock}Current itinerary and targeting hint:\n${ingestContext(input)}\n\n` +
           (input.text ? `Item text:\n${input.text}` : 'See the attached image.'),
       },
     ];
