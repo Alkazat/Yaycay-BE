@@ -22,11 +22,16 @@ import {
   logAiError,
   planChatDeltas,
 } from '../_shared/harness.ts';
-import { applyPatch, PatchError, validatePatchShape } from '../_shared/trip-patch.ts';
+import {
+  applyPatch,
+  PatchError,
+  type TripContentPatch,
+  validatePatchShape,
+} from '../_shared/trip-patch.ts';
 import type { TripContent } from '../_shared/content-types.ts';
 import { serviceClient } from '../_shared/service-client.ts';
 import { assertUnderCap, CapReachedError, finishJob, startJob } from '../_shared/ai-jobs.ts';
-import { briefText, readIntent } from '../_shared/trip-intent.ts';
+import { briefText, INTENT_FIELDS, readIntent } from '../_shared/trip-intent.ts';
 
 const TRIP_COLUMNS =
   'id, destination, start_date, end_date, timezone, currency, tier, status, retention_expires_at, created_at';
@@ -215,6 +220,43 @@ Deno.serve(async (req) => {
         return json(data.content);
       }
       return error('method_not_allowed', 'Use GET or PATCH.', 405);
+    }
+
+    // /trips/:id/content/patch - apply structured ops (add/update/move ...) to
+    // the saved itinerary, so the connector's edits persist - validated + capped
+    // + content-reviewed exactly like a full content write.
+    if (seg.length === 3 && seg[1] === 'content' && seg[2] === 'patch') {
+      if (req.method !== 'POST') return error('method_not_allowed', 'Use POST.', 405);
+      const body = await readJson(req);
+      const shapeErrors = validatePatchShape(body);
+      if (shapeErrors.length > 0) throw new ValidationError(shapeErrors);
+      const { data: cur } = await client
+        .from('trip_content')
+        .select('content')
+        .eq('trip_id', tripId)
+        .maybeSingle();
+      const current = (cur?.content as TripContent | undefined) ?? EMPTY_CONTENT;
+      let nextContent: TripContent;
+      try {
+        nextContent = applyPatch(current, body as TripContentPatch);
+      } catch (e) {
+        if (e instanceof PatchError) throw new ValidationError([e.message]);
+        throw e;
+      }
+      const vErrors = validateTripContent(nextContent);
+      if (vErrors.length > 0) throw new ValidationError(vErrors);
+      return json(await persistContent(client, userId, tripId, nextContent, req));
+    }
+
+    // /trips/:id/intent - the trip brief / "why": pace, budget, travellers,
+    // interests, must-dos, avoids, and free-form constraints (allergies, meal
+    // notes, nap windows). Read + patch-write (only provided fields change).
+    if (seg.length === 2 && seg[1] === 'intent') {
+      if (req.method === 'GET') return await handleIntentGet(client, tripId);
+      if (req.method === 'PUT' || req.method === 'PATCH') {
+        return await handleIntentPut(client, userId, tripId, req);
+      }
+      return error('method_not_allowed', 'Use GET or PUT.', 405);
     }
 
     // /trips/:id/plan/chat - use-our-AI planning chat (streamed).
@@ -534,6 +576,93 @@ async function handleChatList(client: UserClient, tripId: string): Promise<Respo
     .order('created_at', { ascending: true });
   if (dbErr) throw new Error(dbErr.message);
   return json({ messages: data ?? [] });
+}
+
+// Persist trip content (the full object) as the caller. A connector-driven write
+// (x-yaycay-source) is additionally capped, logged to ai_jobs, and queued for
+// content review, like any external-model mutation. Returns the saved content.
+async function persistContent(
+  client: UserClient,
+  userId: string,
+  tripId: string,
+  content: TripContent,
+  req: Request,
+): Promise<TripContent> {
+  const { data: trip } = await client.from('trips').select('id').eq('id', tripId).maybeSingle();
+  if (!trip) throw new NotFoundError();
+
+  const fromConnector = req.headers.get('x-yaycay-source') === 'connector';
+  if (fromConnector) {
+    const svc = serviceClient();
+    await assertUnderCap(svc, tripId);
+    const { data, error: dbErr } = await client
+      .from('trip_content')
+      .upsert({ trip_id: tripId, user_id: userId, content }, { onConflict: 'trip_id' })
+      .select('content')
+      .single();
+    if (dbErr) throw new Error(dbErr.message);
+    const jobId = await startJob(svc, {
+      userId,
+      tripId,
+      kind: 'ingestion',
+      model: 'byo',
+      source: 'connector',
+      connectorId: req.headers.get('x-yaycay-connector-id'),
+      assistant: req.headers.get('x-yaycay-assistant'),
+    });
+    await finishJob(svc, jobId, 'succeeded');
+    await svc
+      .from('content_review')
+      .upsert(
+        { trip_id: tripId, status: 'pending', generated_at: new Date().toISOString() },
+        { onConflict: 'trip_id' },
+      );
+    return data.content as TripContent;
+  }
+
+  const { data, error: dbErr } = await client
+    .from('trip_content')
+    .upsert({ trip_id: tripId, user_id: userId, content }, { onConflict: 'trip_id' })
+    .select('content')
+    .single();
+  if (dbErr) throw new Error(dbErr.message);
+  return data.content as TripContent;
+}
+
+const INTENT_SELECT = 'pace, budget, travellers, interests, must_do, avoid, notes, constraints';
+
+async function handleIntentGet(client: UserClient, tripId: string): Promise<Response> {
+  return json({ intent: await readIntent(client, tripId) });
+}
+
+// Patch-write the trip brief: only the fields provided change; the rest are left
+// as-is. This is the inbound path for what the family tells their assistant -
+// allergies, dietary needs, must-dos, pace - so Yaycay remembers it.
+async function handleIntentPut(
+  client: UserClient,
+  userId: string,
+  tripId: string,
+  req: Request,
+): Promise<Response> {
+  const { data: trip } = await client.from('trips').select('id').eq('id', tripId).maybeSingle();
+  if (!trip) throw new NotFoundError();
+
+  const body = await readJson(req);
+  const existing = await readIntent(client, tripId);
+  const patch: Record<string, unknown> = {};
+  for (const f of INTENT_FIELDS) {
+    if (body[f] !== undefined) patch[f] = body[f];
+  }
+  if (Object.keys(patch).length === 0) throw new ValidationError(['no intent fields provided']);
+
+  const row = { trip_id: tripId, user_id: userId, ...(existing ?? {}), ...patch };
+  const { data, error: dbErr } = await client
+    .from('trip_intent')
+    .upsert(row, { onConflict: 'trip_id' })
+    .select(INTENT_SELECT)
+    .single();
+  if (dbErr) throw new Error(dbErr.message);
+  return json({ intent: data });
 }
 
 const COMPANION_COLUMNS = 'id, near_label, prompt, options, rain_plan, created_at';
