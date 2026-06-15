@@ -88,15 +88,10 @@ Deno.serve(async (req) => {
       return error('unknown_price', 'No such purchasable product.', 400, [priceId]);
     }
 
-    // Trip scoping. A keep-token always applies to a specific trip; tier
-    // products may carry a trip but don't require one. If given, the caller must
-    // own the trip (RLS hides others').
+    // Trip scoping. Keep-tokens are now account-level (they preserve all the
+    // customer's data), so they no longer require a trip. Tier products may
+    // carry a trip but don't require one. If given, the caller must own it.
     const tripId = typeof body.trip_id === 'string' ? body.trip_id : undefined;
-    if (p.kind === 'keep' && !tripId) {
-      return error('validation_error', 'trip_id is required to buy a keep-token.', 422, [
-        'trip_id',
-      ]);
-    }
     if (tripId) {
       const { data: trip } = await client.from('trips').select('id').eq('id', tripId).maybeSingle();
       if (!trip) return error('not_found', 'Trip not found or not visible to the caller.', 404);
