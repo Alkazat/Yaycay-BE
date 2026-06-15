@@ -10,7 +10,8 @@
 //
 // Routes (this function owns all /account/* paths):
 //   GET    /account                    read the account
-//   PATCH  /account                    update the secondary email
+//   PATCH  /account                    update name / secondary email
+//   GET    /account/transactions       purchase history (newest first)
 //   POST   /account/deletion-request   request data deletion (stamps a time)
 //   DELETE /account/deletion-request   cancel a pending deletion request
 
@@ -19,12 +20,18 @@ import { userContext, UnauthorizedError } from '../_shared/user-client.ts';
 import { serviceClient } from '../_shared/service-client.ts';
 
 const ACCOUNT_COLUMNS =
-  'email, recovery_email, role, two_factor_enrolled, deletion_requested_at, created_at';
+  'email, name, recovery_email, role, two_factor_enrolled, deletion_requested_at, created_at';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const NAME_MAX = 120;
 
 type Tier = 'free' | 'byo' | 'ours';
 const TIER_RANK: Record<string, number> = { free: 0, byo: 1, ours: 2 };
+const TIER_LABEL: Record<string, string> = {
+  ours: 'Holiday (our AI)',
+  byo: 'Holiday (bring your own AI)',
+  free: 'Free',
+};
 
 // The part of the path after `/account`, trimmed of slashes ('' for the root).
 function subPath(url: URL): string {
@@ -36,6 +43,7 @@ function subPath(url: URL): string {
 
 interface AccountRow {
   email: string;
+  name: string | null;
   recovery_email: string | null;
   role: string;
   two_factor_enrolled: boolean;
@@ -46,6 +54,7 @@ interface AccountRow {
 function toAccount(r: AccountRow, tier: Tier) {
   return {
     email: r.email,
+    name: r.name ?? null,
     secondary_email: r.recovery_email ?? null,
     tier,
     role: r.role,
@@ -114,9 +123,27 @@ async function handlePatch(svc: Svc, userId: string, req: Request): Promise<Resp
       ]);
     }
   }
+  if (body.name !== undefined) {
+    const v = body.name;
+    if (v === null || (typeof v === 'string' && v.trim() === '')) {
+      patch.name = null;
+    } else if (typeof v === 'string' && v.trim().length <= NAME_MAX) {
+      patch.name = v.trim();
+    } else {
+      return error(
+        'validation_error',
+        `name must be a string up to ${NAME_MAX} chars, or null.`,
+        422,
+        ['name'],
+      );
+    }
+  }
 
   if (Object.keys(patch).length === 0) {
-    return error('validation_error', 'No updatable fields supplied.', 422, ['secondary_email']);
+    return error('validation_error', 'No updatable fields supplied.', 422, [
+      'name',
+      'secondary_email',
+    ]);
   }
 
   const { data, error: dbErr } = await svc
@@ -157,6 +184,32 @@ async function handleDeletionRequest(svc: Svc, userId: string, cancel: boolean):
   return respondWithAccount(svc, userId, data as AccountRow);
 }
 
+// Purchase history for the Settings "Transaction history" list. Sourced from the
+// purchases table (set by the Stripe webhook); description from the catalogue
+// product name, falling back to a tier label. All recorded purchases are
+// completed checkouts, so status is 'paid' (refunds/pending are not tracked yet).
+async function handleTransactions(svc: Svc, userId: string): Promise<Response> {
+  const { data, error: dbErr } = await svc
+    .from('purchases')
+    .select('id, created_at, amount_usd, tier, price_id, products(name)')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false });
+  if (dbErr) throw new Error(dbErr.message);
+  const transactions = (data ?? []).map((p) => {
+    const prod = Array.isArray(p.products) ? p.products[0] : p.products;
+    const description =
+      (prod as { name?: string } | null)?.name ?? TIER_LABEL[p.tier as string] ?? 'Purchase';
+    return {
+      id: p.id as string,
+      date: p.created_at as string,
+      description,
+      amount_usd: p.amount_usd != null ? Number(p.amount_usd) : 0,
+      status: 'paid' as const,
+    };
+  });
+  return json({ transactions });
+}
+
 Deno.serve(async (req) => {
   const preflight = handlePreflight(req);
   if (preflight) return preflight;
@@ -170,6 +223,11 @@ Deno.serve(async (req) => {
       if (req.method === 'GET') return await handleGet(svc, userId);
       if (req.method === 'PATCH') return await handlePatch(svc, userId, req);
       return error('method_not_allowed', 'Use GET or PATCH.', 405);
+    }
+
+    if (sub === 'transactions') {
+      if (req.method === 'GET') return await handleTransactions(svc, userId);
+      return error('method_not_allowed', 'Use GET.', 405);
     }
 
     if (sub === 'deletion-request') {

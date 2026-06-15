@@ -106,7 +106,7 @@ async function main() {
     const { error } = await admin
       .schema('identity')
       .from('accounts')
-      .update({ is_demo: true })
+      .update({ is_demo: true, name: 'Walker family' })
       .eq('user_id', userId);
     if (error) throw error;
   }
