@@ -316,10 +316,38 @@ export interface IngestResponse {
 
 // ===== Commerce (v0.5): Stripe Checkout =====================================
 
-/** Request body for `POST /checkout/session`. */
+/**
+ * Stable catalogue keys (`GET /catalogue`). The FE references these; BE maps each
+ * to this environment's live Stripe price id.
+ */
+export type ProductId =
+  | 'price_holiday_ai'
+  | 'price_holiday_byo'
+  | 'price_datakeep_annual'
+  | 'price_destination_addon'
+  | 'price_photobook';
+
+/** A catalogue entry. `stripe_price_id` is null until ops wires the live price. */
+export interface CatalogueProduct {
+  product_id: ProductId;
+  label: string;
+  /** Display amount; null when not yet priced. */
+  amount_usd: number | null;
+  currency: string;
+  stripe_price_id: string | null;
+  active: boolean;
+}
+
+export interface CatalogueResponse {
+  products: CatalogueProduct[];
+}
+
+/** Request body for `POST /checkout/session`. Provide one of price_id / product_id. */
 export interface CheckoutSessionRequest {
-  /** The Stripe price id of a known, active catalogue product. */
-  price_id: string;
+  /** A Stripe price id of a known, active catalogue product. */
+  price_id?: string;
+  /** A stable catalogue key; BE resolves it to the live Stripe price. */
+  product_id?: ProductId;
   /** Optional trip the purchased tier applies to. */
   trip_id?: string;
   /** Optional affiliate discount/attribution code (from the /go/<slug> funnel). */
