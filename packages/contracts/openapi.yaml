@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Yaycay API
-  version: 0.25.0
+  version: 0.26.0
   description: >
     Yaycay back-end HTTP API. The v0.1 surface (Phase 0) is the free-demo
     generator, signup/lead capture, the 2FA verify step, and trip + trip-content
@@ -636,6 +636,22 @@ paths:
                 type: object
 
   # ===== Commerce (v0.5): Stripe Checkout + webhook =====
+
+  /catalogue:
+    get:
+      operationId: getCatalogue
+      tags: [commerce]
+      summary: The public product catalogue (paywall).
+      description: >
+        Active catalogue entries: each stable ProductId, its display label/amount,
+        and the live Stripe price id (null until ops wires it). Public; no auth.
+      responses:
+        '200':
+          description: The catalogue.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CatalogueResponse'
 
   /checkout/session:
     post:
@@ -3945,14 +3961,48 @@ components:
           items: { $ref: '#/components/schemas/AdminConnector' }
         nextCursor: { type: [string, 'null'] }
 
+    ProductId:
+      type: string
+      enum:
+        [
+          price_holiday_ai,
+          price_holiday_byo,
+          price_datakeep_annual,
+          price_destination_addon,
+          price_photobook,
+        ]
+
+    CatalogueProduct:
+      type: object
+      additionalProperties: false
+      required: [product_id, label, amount_usd, currency, stripe_price_id, active]
+      properties:
+        product_id: { $ref: '#/components/schemas/ProductId' }
+        label: { type: string }
+        amount_usd: { type: [number, 'null'] }
+        currency: { type: string }
+        stripe_price_id: { type: [string, 'null'] }
+        active: { type: boolean }
+
+    CatalogueResponse:
+      type: object
+      additionalProperties: false
+      required: [products]
+      properties:
+        products:
+          type: array
+          items: { $ref: '#/components/schemas/CatalogueProduct' }
+
     CheckoutSessionRequest:
       type: object
       additionalProperties: false
-      required: [price_id]
+      description: Provide one of price_id or product_id.
       properties:
         price_id:
           type: string
-          description: Stripe price id of a known, active catalogue product.
+          description: A Stripe price id of a known, active catalogue product.
+        product_id:
+          $ref: '#/components/schemas/ProductId'
         trip_id:
           type: string
           description: Optional trip the purchased tier applies to.
