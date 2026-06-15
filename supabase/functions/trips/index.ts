@@ -339,6 +339,17 @@ Deno.serve(async (req) => {
       return error('method_not_allowed', 'Use PATCH.', 405);
     }
 
+    // /trips/:id/features - per-explorer feature toggles (sparse overrides on
+    // top of the age-band defaults). GET lists every profile's row; PUT upserts
+    // one profile's overrides.
+    if (seg.length === 2 && seg[1] === 'features') {
+      if (req.method === 'GET') return await handleFeaturesGet(client, tripId);
+      if (req.method === 'PUT' || req.method === 'PATCH') {
+        return await handleFeaturesPut(client, userId, tripId, req);
+      }
+      return error('method_not_allowed', 'Use GET or PUT.', 405);
+    }
+
     return error('not_found', 'No such route.', 404);
   } catch (err) {
     if (err instanceof UnauthorizedError) {
@@ -908,6 +919,74 @@ async function handleProgressUpdate(
 async function ensureTripVisible(client: UserClient, tripId: string): Promise<void> {
   const { data } = await client.from('trips').select('id').eq('id', tripId).maybeSingle();
   if (!data) throw new NotFoundError();
+}
+
+// ----- Per-explorer feature toggles -----------------------------------------
+
+const FEATURE_COLUMNS = 'profile_id, overrides, updated_at';
+
+function toFeatureRow(r: Record<string, unknown>): Record<string, unknown> {
+  return {
+    profile_id: (r.profile_id as string | null) ?? null,
+    overrides:
+      r.overrides && typeof r.overrides === 'object'
+        ? (r.overrides as Record<string, unknown>)
+        : {},
+    updated_at: r.updated_at as string,
+  };
+}
+
+// Store only boolean entries; the toggle vocabulary is open-ended by design, so
+// absent keys fall back to the explorer's age-band default on the client.
+function sanitiseOverrides(raw: unknown): Record<string, boolean> {
+  if (!raw || typeof raw !== 'object') return {};
+  const out: Record<string, boolean> = {};
+  for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+    if (typeof v === 'boolean') out[k] = v;
+  }
+  return out;
+}
+
+async function handleFeaturesGet(client: UserClient, tripId: string): Promise<Response> {
+  await ensureTripVisible(client, tripId);
+  const { data, error: dbErr } = await client
+    .from('trip_profile_features')
+    .select(FEATURE_COLUMNS)
+    .eq('trip_id', tripId);
+  if (dbErr) throw new Error(dbErr.message);
+  return json({ features: (data ?? []).map((r) => toFeatureRow(r as Record<string, unknown>)) });
+}
+
+async function handleFeaturesPut(
+  client: UserClient,
+  userId: string,
+  tripId: string,
+  req: Request,
+): Promise<Response> {
+  const body = await readJson(req);
+  const profileId = typeof body.profile_id === 'string' ? body.profile_id : null;
+  if (!profileId) throw new ValidationError(['profile_id is required']);
+  const overrides = sanitiseOverrides(body.overrides);
+
+  // Caller must own the trip (RLS) before writing toggles.
+  await ensureTripVisible(client, tripId);
+
+  const { data, error: dbErr } = await client
+    .from('trip_profile_features')
+    .upsert(
+      {
+        trip_id: tripId,
+        user_id: userId,
+        profile_id: profileId,
+        overrides,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'trip_id,profile_id' },
+    )
+    .select(FEATURE_COLUMNS)
+    .single();
+  if (dbErr) throw new Error(dbErr.message);
+  return json(toFeatureRow(data as Record<string, unknown>));
 }
 
 // ----- Stars (reward economy) ------------------------------------------------
