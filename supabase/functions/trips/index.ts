@@ -238,7 +238,7 @@ Deno.serve(async (req) => {
       const current = (cur?.content as TripContent | undefined) ?? EMPTY_CONTENT;
       let nextContent: TripContent;
       try {
-        nextContent = applyPatch(current, body as TripContentPatch);
+        nextContent = applyPatch(current, body as unknown as TripContentPatch);
       } catch (e) {
         if (e instanceof PatchError) throw new ValidationError([e.message]);
         throw e;
