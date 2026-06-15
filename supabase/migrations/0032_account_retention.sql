@@ -1,4 +1,4 @@
--- 0031_account_retention.sql
+-- 0032_account_retention.sql
 -- Move the keep-data ("keep my memories") entitlement from per-trip to
 -- ACCOUNT-level: one keep purchase preserves all of the customer's data.
 --
