@@ -404,3 +404,68 @@ export interface AdminConnectorPage {
   items: AdminConnector[];
   nextCursor: string | null;
 }
+
+// ===== Admin support sessions / "view-as" (v0.24) ==========================
+//
+// A support session is a time-boxed, reason-gated, audited record of an admin
+// inspecting ONE customer's data. It is an oversight record, NOT a credential:
+// no customer login link, access/refresh token, or auth cookie is ever issued.
+// The admin inspects data through the existing AAL2-gated /admin/* read path;
+// the session scopes, logs, time-boxes, and surfaces that access. Acting as the
+// customer (writes) is out of scope by design.
+
+/** The only support mode today: inspect customer data, never act as them. */
+export type SupportSessionMode = 'read_only';
+
+/** How an active session ended: an admin closed it, or its TTL elapsed. */
+export type SupportSessionEndReason = 'manual' | 'expired';
+
+export interface SupportSession {
+  id: string;
+  /** The admin who opened the session. */
+  actorId: string;
+  actorEmail: string | null;
+  /** The customer being inspected. */
+  targetUserId: string;
+  targetEmail: string | null;
+  /** Mandatory justification (e.g. a ticket reference); audited. */
+  reason: string;
+  mode: SupportSessionMode;
+  startedAt: string;
+  expiresAt: string;
+  endedAt: string | null;
+  endedReason: SupportSessionEndReason | null;
+  /** Derived server-side: not ended and not past `expiresAt`. */
+  active: boolean;
+}
+
+/**
+ * Body for `POST /admin/support-sessions`. Identify the customer by id or email
+ * (one is required). `reason` is mandatory and audited. `ttlMinutes` is clamped
+ * server-side (default 30, max 120). Opening a session while one is already
+ * open for the same admin is a `409`.
+ */
+export interface StartSupportSessionRequest {
+  targetUserId?: string;
+  targetEmail?: string;
+  reason: string;
+  ttlMinutes?: number;
+}
+
+export interface SupportSessionPage {
+  items: SupportSession[];
+  nextCursor: string | null;
+}
+
+/**
+ * Read-only snapshot of a customer's footprint for an active support session.
+ * Aggregates what the admin customer/trip read endpoints already expose; every
+ * fetch is audited against the session. Returned only to the admin who owns the
+ * session, and only while it is active (expired sessions return `410`).
+ */
+export interface SupportSessionSnapshot {
+  session: SupportSession;
+  customer: CustomerSummary;
+  profiles: AdminChildProfile[];
+  trips: AdminTripSummary[];
+}

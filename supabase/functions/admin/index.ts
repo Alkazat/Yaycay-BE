@@ -15,6 +15,7 @@ import * as admins from './routes/admins.ts';
 import * as affiliates from './routes/affiliates.ts';
 import * as deletions from './routes/deletion-requests.ts';
 import * as connectors from './routes/connectors.ts';
+import * as support from './routes/support.ts';
 
 // Reduce the request path to the part after `/admin`, then split into segments.
 function adminSegments(url: URL): string[] {
@@ -126,6 +127,19 @@ async function route(
     case 'connectors':
       if (!a && method === 'GET') return connectors.listConnectors(req, ctx);
       if (a && b === 'revoke' && method === 'POST') return connectors.revokeConnector(req, ctx, a);
+      break;
+
+    case 'support-sessions':
+      if (!a) {
+        if (method === 'GET') return support.listSupportSessions(req, ctx);
+        if (method === 'POST') return support.startSupportSession(req, ctx);
+      } else if (!b && method === 'GET') {
+        return support.getSupportSession(req, ctx, a);
+      } else if (b === 'end' && method === 'POST') {
+        return support.endSupportSession(req, ctx, a);
+      } else if (b === 'snapshot' && method === 'GET') {
+        return support.getSupportSessionSnapshot(req, ctx, a);
+      }
       break;
 
     case 'affiliates':
