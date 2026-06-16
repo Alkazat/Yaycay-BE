@@ -36,7 +36,14 @@ def main() -> int:
     req = urllib.request.Request(
         f"https://api.supabase.com/v1/projects/{ref}/database/query",
         data=json.dumps({"query": SQL}).encode(),
-        headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+        headers={
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+            # api.supabase.com sits behind Cloudflare, which returns a 403
+            # "error code: 1010" for the default Python-urllib User-Agent.
+            "User-Agent": "yaycay-ci-verify/1.0",
+            "Accept": "application/json",
+        },
         method="POST",
     )
     try:
