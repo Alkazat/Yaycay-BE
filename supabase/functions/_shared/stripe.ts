@@ -125,6 +125,33 @@ export async function setPromotionCodeActive(
   await stripeForm(secretKey, `/promotion_codes/${promotionCodeId}`, form);
 }
 
+/**
+ * Look up a promotion code by its customer-facing code. Returns the promotion
+ * code id and the coupon it points at, or null if none exists. Used to make
+ * affiliate creation idempotent: a prior attempt that created the Stripe coupon
+ * but failed before saving the row leaves an orphan, and a retry should reuse it
+ * rather than collide on the duplicate code.
+ */
+export async function findPromotionCode(
+  secretKey: string,
+  code: string,
+): Promise<{ id: string; couponId: string } | null> {
+  const res = await fetch(
+    `${STRIPE_API}/promotion_codes?code=${encodeURIComponent(code.toUpperCase())}&limit=1`,
+    { headers: { authorization: `Bearer ${secretKey}` } },
+  );
+  if (!res.ok) {
+    throw new Error(`Stripe /promotion_codes lookup failed: ${res.status} ${await res.text()}`);
+  }
+  const data = await res.json();
+  const first = Array.isArray(data.data) && data.data.length > 0 ? data.data[0] : null;
+  if (!first) return null;
+  const coupon = first.coupon;
+  const couponId =
+    coupon && typeof coupon === 'object' ? (coupon.id as string) : (coupon as string);
+  return { id: first.id as string, couponId };
+}
+
 /** Thrown when a webhook payload fails signature/timestamp verification. */
 export class SignatureError extends Error {}
 
