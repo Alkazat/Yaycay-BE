@@ -18,6 +18,10 @@ name: Deploy
 #     STRIPE_WEBHOOK_SECRET (live keys); staging uses STAGING_STRIPE_SECRET_KEY /
 #     STAGING_STRIPE_WEBHOOK_SECRET (test keys). Whichever is set is pushed to the
 #     project as STRIPE_SECRET_KEY / STRIPE_WEBHOOK_SECRET for the functions.
+#   STRIPE_COUPON_KEY / STAGING_STRIPE_COUPON_KEY - a dedicated Stripe restricted
+#     key (Coupons + Promotion codes: Write) used only by the affiliate admin
+#     endpoints; pushed as STRIPE_COUPON_KEY. Falls back to STRIPE_SECRET_KEY when
+#     unset.
 #   MCP_TOKEN_SIGNING_SECRET - signs BYO-AI connector tokens (any strong random
 #     string); without it the MCP endpoint and connector minting return an error.
 #   DISPOSAL_SECRET - shared secret guarding the /disposal sweep endpoint (any
@@ -108,21 +112,27 @@ jobs:
           # Stripe is per environment: live keys on production, test keys on staging.
           PROD_STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
           PROD_STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
+          # Dedicated restricted key for affiliate coupon/promotion-code writes.
+          PROD_STRIPE_COUPON_KEY: ${{ secrets.STRIPE_COUPON_KEY }}
           STAGING_STRIPE_SECRET_KEY: ${{ secrets.STAGING_STRIPE_SECRET_KEY }}
           STAGING_STRIPE_WEBHOOK_SECRET: ${{ secrets.STAGING_STRIPE_WEBHOOK_SECRET }}
+          STAGING_STRIPE_COUPON_KEY: ${{ secrets.STAGING_STRIPE_COUPON_KEY }}
           MCP_TOKEN_SIGNING_SECRET: ${{ secrets.MCP_TOKEN_SIGNING_SECRET }}
           DISPOSAL_SECRET: ${{ secrets.DISPOSAL_SECRET }}
         run: |
           if [ "${ENVIRONMENT}" = "production" ]; then
             STRIPE_KEY="${PROD_STRIPE_SECRET_KEY}"; STRIPE_WH="${PROD_STRIPE_WEBHOOK_SECRET}"
+            STRIPE_COUPON="${PROD_STRIPE_COUPON_KEY}"
           else
             STRIPE_KEY="${STAGING_STRIPE_SECRET_KEY}"; STRIPE_WH="${STAGING_STRIPE_WEBHOOK_SECRET}"
+            STRIPE_COUPON="${STAGING_STRIPE_COUPON_KEY}"
           fi
           set --
           [ -n "${ANTHROPIC_API_KEY}" ] && set -- "$@" "ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}"
           [ -n "${BREVO_API_KEY}" ] && set -- "$@" "BREVO_API_KEY=${BREVO_API_KEY}"
           [ -n "${STRIPE_KEY}" ] && set -- "$@" "STRIPE_SECRET_KEY=${STRIPE_KEY}"
           [ -n "${STRIPE_WH}" ] && set -- "$@" "STRIPE_WEBHOOK_SECRET=${STRIPE_WH}"
+          [ -n "${STRIPE_COUPON}" ] && set -- "$@" "STRIPE_COUPON_KEY=${STRIPE_COUPON}"
           [ -n "${MCP_TOKEN_SIGNING_SECRET}" ] && set -- "$@" "MCP_TOKEN_SIGNING_SECRET=${MCP_TOKEN_SIGNING_SECRET}"
           [ -n "${DISPOSAL_SECRET}" ] && set -- "$@" "DISPOSAL_SECRET=${DISPOSAL_SECRET}"
           if [ "$#" -gt 0 ]; then
