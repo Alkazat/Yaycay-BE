@@ -70,8 +70,14 @@ async function readJson(req: Request): Promise<Record<string, unknown>> {
 }
 
 function stripeKey(): string {
-  const key = Deno.env.get('STRIPE_SECRET_KEY') ?? '';
-  if (!key) throw new ProblemError(503, 'Service Unavailable', 'Stripe is not configured.');
+  // Affiliate coupon/promotion-code operations use a dedicated restricted key
+  // scoped to Coupons + Promotion codes (write), so the main STRIPE_SECRET_KEY
+  // used for Checkout needn't carry those permissions. Fall back to
+  // STRIPE_SECRET_KEY when the dedicated key isn't configured.
+  const key = Deno.env.get('STRIPE_COUPON_KEY') || Deno.env.get('STRIPE_SECRET_KEY') || '';
+  if (!key) {
+    throw new ProblemError(503, 'Service Unavailable', 'Stripe coupon key is not configured.');
+  }
   return key;
 }
 
