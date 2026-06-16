@@ -135,7 +135,11 @@ export async function createAffiliate(req: Request, ctx: AdminContext): Promise<
     }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    throw new ProblemError(502, 'Bad Gateway', `Stripe error creating the affiliate coupon: ${msg}`);
+    throw new ProblemError(
+      502,
+      'Bad Gateway',
+      `Stripe error creating the affiliate coupon: ${msg}`,
+    );
   }
 
   const { data, error } = await db

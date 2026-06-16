@@ -147,7 +147,8 @@ export async function findPromotionCode(
   const first = Array.isArray(data.data) && data.data.length > 0 ? data.data[0] : null;
   if (!first) return null;
   const coupon = first.coupon;
-  const couponId = coupon && typeof coupon === 'object' ? (coupon.id as string) : (coupon as string);
+  const couponId =
+    coupon && typeof coupon === 'object' ? (coupon.id as string) : (coupon as string);
   return { id: first.id as string, couponId };
 }
 
