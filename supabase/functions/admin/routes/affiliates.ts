@@ -4,11 +4,16 @@
 // All admin+AAL2 gated by requireAdmin; writes are audited.
 
 import { serviceClient } from '../lib/db.ts';
-import { ok, badRequest, notFound, unprocessable, ProblemError } from '../lib/http.ts';
+import { ok, badRequest, notFound, unprocessable, conflict, ProblemError } from '../lib/http.ts';
 import { writeAudit } from '../lib/audit.ts';
 import { parsePageParams, page, rangeEnd } from '../lib/pagination.ts';
 import type { AdminContext } from '../lib/auth.ts';
-import { createCoupon, createPromotionCode, setPromotionCodeActive } from '../../_shared/stripe.ts';
+import {
+  createCoupon,
+  createPromotionCode,
+  findPromotionCode,
+  setPromotionCodeActive,
+} from '../../_shared/stripe.ts';
 import { sendEmail } from '../../_shared/brevo.ts';
 
 const AFFILIATE_COLUMNS =
@@ -100,13 +105,40 @@ export async function createAffiliate(req: Request, ctx: AdminContext): Promise<
   if (!code) throw unprocessable('could not derive a code');
   if (!landingSlug) throw unprocessable('could not derive a landing slug');
 
-  // Create the Stripe coupon + promotion code first, so a DB row never points at
-  // a non-existent promo.
-  const key = stripeKey();
-  const couponId = await createCoupon(key, discountPercent, name);
-  const promoId = await createPromotionCode(key, couponId, code);
+  const db = serviceClient();
 
-  const { data, error } = await serviceClient()
+  // Reject a duplicate up front so a retry never orphans a second Stripe coupon.
+  const { data: dups, error: dupErr } = await db
+    .from('affiliates')
+    .select('id')
+    .or(`code.eq.${code},landing_slug.eq.${landingSlug}`)
+    .limit(1);
+  if (dupErr) throw badRequest(dupErr.message);
+  if (dups && dups.length > 0) throw conflict('That code or landing slug is already in use.');
+
+  // Create (or recover) the Stripe coupon + promotion code before saving the
+  // row, so a stored affiliate never points at a non-existent promo. Stripe
+  // failures surface as a 502 with Stripe's own message rather than an opaque
+  // 500. A prior attempt that created the coupon but failed before the insert
+  // leaves an orphaned promo code; reuse it instead of colliding on the retry.
+  const key = stripeKey();
+  let couponId = '';
+  let promoId = '';
+  try {
+    const orphan = await findPromotionCode(key, code);
+    if (orphan) {
+      couponId = orphan.couponId;
+      promoId = orphan.id;
+    } else {
+      couponId = await createCoupon(key, discountPercent, name);
+      promoId = await createPromotionCode(key, couponId, code);
+    }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    throw new ProblemError(502, 'Bad Gateway', `Stripe error creating the affiliate coupon: ${msg}`);
+  }
+
+  const { data, error } = await db
     .from('affiliates')
     .insert({
       name,
@@ -124,7 +156,7 @@ export async function createAffiliate(req: Request, ctx: AdminContext): Promise<
     .single();
   if (error) {
     if ((error as { code?: string }).code === '23505') {
-      throw new ProblemError(409, 'Conflict', 'Code or landing slug already in use.');
+      throw conflict('Code or landing slug already in use.');
     }
     throw badRequest(error.message);
   }
