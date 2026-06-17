@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Yaycay API
-  version: 0.28.0
+  version: 0.30.0
   description: >
     Yaycay back-end HTTP API. The v0.1 surface (Phase 0) is the free-demo
     generator, signup/lead capture, the 2FA verify step, and trip + trip-content
@@ -241,6 +241,107 @@ paths:
           $ref: '#/components/responses/NotFound'
         '422':
           $ref: '#/components/responses/ValidationError'
+
+  /trips/{tripId}/archive:
+    parameters:
+      - $ref: '#/components/parameters/TripId'
+    post:
+      operationId: archiveTrip
+      tags: [trips]
+      summary: Archive or restore a trip (soft state, never a delete).
+      description: >
+        Sets `status` to `archived` (or back to `ready` on restore). Archived
+        trips stay listable via `GET /trips` so the FE can show an Archive list.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ArchiveTripRequest' }
+      responses:
+        '200':
+          description: The updated trip.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TripSummary' }
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /trips/{tripId}/duplicate:
+    parameters:
+      - $ref: '#/components/parameters/TripId'
+    post:
+      operationId: duplicateTrip
+      tags: [trips]
+      summary: Duplicate a trip into a fresh free/draft copy the caller owns.
+      description: >
+        Returns a new trip with a fresh id, `tier: free`, `status: draft`, the
+        source destination/dates copied, and the day content deep-copied.
+      security:
+        - bearerAuth: []
+      responses:
+        '201':
+          description: The new trip.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TripSummary' }
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /trips/{tripId}/share:
+    parameters:
+      - $ref: '#/components/parameters/TripId'
+    post:
+      operationId: shareTrip
+      tags: [trips]
+      summary: Mint (or reuse) a public read-only share link for a trip.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ShareTripRequest' }
+      responses:
+        '200':
+          description: The share link (and whether an invite was emailed).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ShareTripResponse' }
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /shared/{token}:
+    parameters:
+      - name: token
+        in: path
+        required: true
+        schema: { type: string }
+    get:
+      operationId: getSharedTrip
+      tags: [trips]
+      summary: Resolve a shared trip by token (public, read-only).
+      description: >
+        The only place a non-owner reads a trip. No auth; the token is the
+        capability. Returns the itinerary plus the owner's display name. 404 for
+        an unknown, revoked, or expired token.
+      responses:
+        '200':
+          description: The shared trip.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SharedTrip' }
+        '404':
+          $ref: '#/components/responses/NotFound'
 
   # ===== Use-our-AI surfaces (v0.3). Logged to ai_jobs; honour the daily cap. =====
 
@@ -2782,6 +2883,44 @@ components:
           type: string
           format: date-time
 
+    ArchiveTripRequest:
+      type: object
+      additionalProperties: false
+      required: [archived]
+      properties:
+        archived: { type: boolean }
+
+    ShareTripRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        email:
+          type: string
+          format: email
+          description: When present, BE also emails the recipient an invite.
+
+    ShareTripResponse:
+      type: object
+      additionalProperties: false
+      required: [share_url, emailed]
+      properties:
+        share_url:
+          type: string
+          description: Public read-only link, `<origin>/shared/<token>`.
+        emailed:
+          type: boolean
+
+    SharedTrip:
+      type: object
+      additionalProperties: false
+      required: [shared_by, content]
+      properties:
+        shared_by:
+          type: string
+          description: Friendly display name for the "Shared by ..." line.
+        content:
+          $ref: '#/components/schemas/TripContent'
+
     CreateTripRequest:
       type: object
       additionalProperties: false
@@ -3472,13 +3611,19 @@ components:
     Transaction:
       type: object
       additionalProperties: false
-      required: [id, date, description, amount_usd, status]
+      required: [id, date, description, amount_usd, status, trip_id, trip_name]
       properties:
         id: { type: string }
         date: { type: string, format: date-time }
         description: { type: string }
         amount_usd: { type: number }
         status: { type: string, enum: [paid, refunded, pending] }
+        trip_id:
+          type: [string, 'null']
+          description: The trip this charge bought, when applicable.
+        trip_name:
+          type: [string, 'null']
+          description: Display name (destination) of that trip, when applicable.
 
     TransactionsResponse:
       type: object
