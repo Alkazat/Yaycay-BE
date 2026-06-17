@@ -158,6 +158,10 @@ export interface Transaction {
   description: string;
   amount_usd: number;
   status: 'paid' | 'refunded' | 'pending';
+  /** The trip this charge bought, when applicable (else null). */
+  trip_id: string | null;
+  /** Display name of that trip (its destination), when applicable (else null). */
+  trip_name: string | null;
 }
 
 export interface TransactionsResponse {
