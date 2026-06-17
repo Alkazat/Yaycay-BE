@@ -40,8 +40,10 @@ const TRIP_COLUMNS =
 // can derive day_count; PostgREST embeds the one-to-one trip_content.
 const SUMMARY_COLUMNS = `${TRIP_COLUMNS}, trip_content(content)`;
 
-// Shape a trips row (with embedded content) into a TripSummary.
-function toSummary(row: Record<string, unknown>): Record<string, unknown> {
+// Shape a trips row (with embedded content) into a TripSummary. `accountKept` is
+// true when the owner has an active account-level keep, which preserves every
+// trip regardless of its own retention date.
+function toSummary(row: Record<string, unknown>, accountKept: boolean): Record<string, unknown> {
   const tc = row.trip_content as { content?: TripContent } | { content?: TripContent }[] | null;
   const embedded = Array.isArray(tc) ? tc[0] : tc;
   const days = embedded?.content?.days;
@@ -50,7 +52,7 @@ function toSummary(row: Record<string, unknown>): Record<string, unknown> {
   return {
     ...trip,
     day_count: Array.isArray(days) ? days.length : 0,
-    data_kept: retention === null || new Date(retention).getTime() > Date.now(),
+    data_kept: accountKept || retention === null || new Date(retention).getTime() > Date.now(),
   };
 }
 
@@ -108,7 +110,19 @@ Deno.serve(async (req) => {
           .select(SUMMARY_COLUMNS)
           .order('created_at', { ascending: false });
         if (dbErr) throw new Error(dbErr.message);
-        return json({ trips: (data ?? []).map((r) => toSummary(r as Record<string, unknown>)) });
+        // Account-level keep blankets every trip; read it once for data_kept.
+        const { data: acct } = await serviceClient()
+          .schema('identity')
+          .from('accounts')
+          .select('retention_expires_at')
+          .eq('user_id', userId)
+          .maybeSingle();
+        const accountKept =
+          !!acct?.retention_expires_at &&
+          new Date(acct.retention_expires_at).getTime() > Date.now();
+        return json({
+          trips: (data ?? []).map((r) => toSummary(r as Record<string, unknown>, accountKept)),
+        });
       }
       if (req.method === 'POST') {
         const body = await readJson(req);

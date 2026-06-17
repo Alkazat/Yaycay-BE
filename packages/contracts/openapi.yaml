@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Yaycay API
-  version: 0.26.0
+  version: 0.28.0
   description: >
     Yaycay back-end HTTP API. The v0.1 surface (Phase 0) is the free-demo
     generator, signup/lead capture, the 2FA verify step, and trip + trip-content
@@ -1657,6 +1657,11 @@ paths:
       parameters:
         - $ref: '#/components/parameters/Cursor'
         - $ref: '#/components/parameters/Limit'
+        - name: includeArchived
+          in: query
+          required: false
+          description: Include archived affiliates (hidden by default).
+          schema: { type: boolean, default: false }
       responses:
         '200':
           description: A page of affiliates.
@@ -1740,8 +1745,57 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/ProblemNotFound'
+        '409':
+          description: Affiliate is archived; status cannot be changed.
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
         '422':
           $ref: '#/components/responses/ProblemUnprocessable'
+    put:
+      operationId: updateAffiliate
+      tags: [admin]
+      summary: Edit affiliate metadata (discount and code are immutable).
+      security:
+        - adminAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateAffiliateInput' }
+      responses:
+        '200':
+          description: The updated affiliate.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Affiliate' }
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/ProblemNotFound'
+        '409':
+          description: Landing slug already in use.
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+        '422':
+          $ref: '#/components/responses/ProblemUnprocessable'
+    delete:
+      operationId: archiveAffiliate
+      tags: [admin]
+      summary: Archive (soft-delete) an affiliate and deactivate its promo code.
+      security:
+        - adminAuth: []
+      responses:
+        '200':
+          description: The archived affiliate.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Affiliate' }
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/ProblemNotFound'
 
   /admin/affiliates/{code}/redemptions:
     parameters:
@@ -3386,6 +3440,7 @@ components:
           role,
           two_factor_enrolled,
           deletion_requested_at,
+          data_kept_until,
           created_at,
         ]
       properties:
@@ -3398,6 +3453,7 @@ components:
           enum: [user, admin]
         two_factor_enrolled: { type: boolean }
         deletion_requested_at: { type: [string, 'null'], format: date-time }
+        data_kept_until: { type: [string, 'null'], format: date-time }
         created_at: { type: string, format: date-time }
 
     AccountUpdate:
@@ -4068,6 +4124,10 @@ components:
         commissionPercent: { type: integer }
         landingSlug: { type: string }
         status: { $ref: '#/components/schemas/AffiliateStatus' }
+        archivedAt:
+          type: [string, 'null']
+          format: date-time
+          description: Set when archived (soft-deleted); null otherwise.
         createdAt: { type: string, format: date-time }
 
     AffiliateStatus:
@@ -4086,6 +4146,20 @@ components:
         commissionPercent: { type: integer, minimum: 0, maximum: 100 }
         code: { type: string, description: Hint; BE owns uniqueness (409 on collision). }
         landingSlug: { type: string, description: Hint; BE owns uniqueness. }
+
+    UpdateAffiliateInput:
+      type: object
+      additionalProperties: false
+      description: >-
+        Edit affiliate metadata. All fields optional; only provided fields
+        change. discountPercent and code are immutable after creation (the Stripe
+        coupon/promotion code are immutable) - archive and recreate to change.
+      properties:
+        name: { type: string }
+        email: { type: string, format: email }
+        handle: { type: string }
+        commissionPercent: { type: integer, minimum: 0, maximum: 100 }
+        landingSlug: { type: string }
 
     AffiliateRedemption:
       type: object

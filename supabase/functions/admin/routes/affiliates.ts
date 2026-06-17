@@ -1,18 +1,23 @@
 // /admin/affiliates - the affiliate/influencer program. Create an affiliate
-// (and its Stripe coupon + promotion code), list/inspect, pause/reactivate,
-// read attributed redemptions, and send the monthly commission report (Brevo).
-// All admin+AAL2 gated by requireAdmin; writes are audited.
+// (and its Stripe coupon + promotion code), list/inspect, edit, pause/reactivate,
+// archive, read attributed redemptions, and send the monthly commission report
+// (Brevo). All admin+AAL2 gated by requireAdmin; writes are audited.
 
 import { serviceClient } from '../lib/db.ts';
-import { ok, badRequest, notFound, unprocessable, ProblemError } from '../lib/http.ts';
+import { ok, badRequest, notFound, unprocessable, conflict, ProblemError } from '../lib/http.ts';
 import { writeAudit } from '../lib/audit.ts';
 import { parsePageParams, page, rangeEnd } from '../lib/pagination.ts';
 import type { AdminContext } from '../lib/auth.ts';
-import { createCoupon, createPromotionCode, setPromotionCodeActive } from '../../_shared/stripe.ts';
+import {
+  createCoupon,
+  createPromotionCode,
+  findPromotionCode,
+  setPromotionCodeActive,
+} from '../../_shared/stripe.ts';
 import { sendEmail } from '../../_shared/brevo.ts';
 
 const AFFILIATE_COLUMNS =
-  'id, name, email, handle, code, discount_percent, commission_percent, landing_slug, stripe_promotion_code_id, status, created_at';
+  'id, name, email, handle, code, discount_percent, commission_percent, landing_slug, stripe_promotion_code_id, status, archived_at, created_at';
 
 interface AffiliateRow {
   id: string;
@@ -25,6 +30,7 @@ interface AffiliateRow {
   landing_slug: string;
   stripe_promotion_code_id: string | null;
   status: string;
+  archived_at: string | null;
   created_at: string;
 }
 
@@ -39,6 +45,7 @@ function toAffiliate(r: AffiliateRow) {
     commissionPercent: r.commission_percent,
     landingSlug: r.landing_slug,
     status: r.status,
+    archivedAt: r.archived_at,
     createdAt: r.created_at,
   };
 }
@@ -65,18 +72,28 @@ async function readJson(req: Request): Promise<Record<string, unknown>> {
 }
 
 function stripeKey(): string {
-  const key = Deno.env.get('STRIPE_SECRET_KEY') ?? '';
-  if (!key) throw new ProblemError(503, 'Service Unavailable', 'Stripe is not configured.');
+  // Affiliate coupon/promotion-code operations use a dedicated restricted key
+  // scoped to Coupons + Promotion codes (write), so the main STRIPE_SECRET_KEY
+  // used for Checkout needn't carry those permissions. Fall back to
+  // STRIPE_SECRET_KEY when the dedicated key isn't configured.
+  const key = Deno.env.get('STRIPE_COUPON_KEY') || Deno.env.get('STRIPE_SECRET_KEY') || '';
+  if (!key) {
+    throw new ProblemError(503, 'Service Unavailable', 'Stripe coupon key is not configured.');
+  }
   return key;
 }
 
 export async function listAffiliates(req: Request, _ctx: AdminContext): Promise<Response> {
-  const params = parsePageParams(new URL(req.url));
-  const { data, error } = await serviceClient()
+  const url = new URL(req.url);
+  const params = parsePageParams(url);
+  // Archived affiliates are hidden by default; ?includeArchived=true shows them.
+  const includeArchived = url.searchParams.get('includeArchived') === 'true';
+  let q = serviceClient()
     .from('affiliates')
     .select(AFFILIATE_COLUMNS)
-    .order('created_at', { ascending: false })
-    .range(params.offset, rangeEnd(params));
+    .order('created_at', { ascending: false });
+  if (!includeArchived) q = q.is('archived_at', null);
+  const { data, error } = await q.range(params.offset, rangeEnd(params));
   if (error) throw badRequest(error.message);
   return ok(page((data as AffiliateRow[]).map(toAffiliate), params));
 }
@@ -100,13 +117,44 @@ export async function createAffiliate(req: Request, ctx: AdminContext): Promise<
   if (!code) throw unprocessable('could not derive a code');
   if (!landingSlug) throw unprocessable('could not derive a landing slug');
 
-  // Create the Stripe coupon + promotion code first, so a DB row never points at
-  // a non-existent promo.
-  const key = stripeKey();
-  const couponId = await createCoupon(key, discountPercent, name);
-  const promoId = await createPromotionCode(key, couponId, code);
+  const db = serviceClient();
 
-  const { data, error } = await serviceClient()
+  // Reject a duplicate up front so a retry never orphans a second Stripe coupon.
+  const { data: dups, error: dupErr } = await db
+    .from('affiliates')
+    .select('id')
+    .or(`code.eq.${code},landing_slug.eq.${landingSlug}`)
+    .limit(1);
+  if (dupErr) throw badRequest(dupErr.message);
+  if (dups && dups.length > 0) throw conflict('That code or landing slug is already in use.');
+
+  // Create (or recover) the Stripe coupon + promotion code before saving the
+  // row, so a stored affiliate never points at a non-existent promo. Stripe
+  // failures surface as a 502 with Stripe's own message rather than an opaque
+  // 500. A prior attempt that created the coupon but failed before the insert
+  // leaves an orphaned promo code; reuse it instead of colliding on the retry.
+  const key = stripeKey();
+  let couponId = '';
+  let promoId = '';
+  try {
+    const orphan = await findPromotionCode(key, code);
+    if (orphan) {
+      couponId = orphan.couponId;
+      promoId = orphan.id;
+    } else {
+      couponId = await createCoupon(key, discountPercent, name);
+      promoId = await createPromotionCode(key, couponId, code);
+    }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    throw new ProblemError(
+      502,
+      'Bad Gateway',
+      `Stripe error creating the affiliate coupon: ${msg}`,
+    );
+  }
+
+  const { data, error } = await db
     .from('affiliates')
     .insert({
       name,
@@ -124,7 +172,7 @@ export async function createAffiliate(req: Request, ctx: AdminContext): Promise<
     .single();
   if (error) {
     if ((error as { code?: string }).code === '23505') {
-      throw new ProblemError(409, 'Conflict', 'Code or landing slug already in use.');
+      throw conflict('Code or landing slug already in use.');
     }
     throw badRequest(error.message);
   }
@@ -167,11 +215,14 @@ export async function setAffiliateStatus(
   const db = serviceClient();
   const { data: existing, error: selErr } = await db
     .from('affiliates')
-    .select('code, status, stripe_promotion_code_id')
+    .select('code, status, archived_at, stripe_promotion_code_id')
     .eq('code', code.toUpperCase())
     .maybeSingle();
   if (selErr) throw badRequest(selErr.message);
   if (!existing) throw notFound('Affiliate not found.');
+  if (existing.archived_at) {
+    throw conflict('Affiliate is archived; status cannot be changed.');
+  }
 
   // Toggle the Stripe promotion code so a paused affiliate stops redeeming.
   if (existing.stripe_promotion_code_id) {
@@ -196,6 +247,150 @@ export async function setAffiliateStatus(
     targetId: code.toUpperCase(),
     before: { status: existing.status },
     after: { status },
+  });
+  return ok(toAffiliate(data as AffiliateRow));
+}
+
+// PUT /admin/affiliates/{code} - edit mutable metadata. The discount and code
+// are fixed by the Stripe coupon/promotion code (both immutable in Stripe), so
+// they cannot be changed here; archive and recreate to change them.
+export async function updateAffiliate(
+  req: Request,
+  ctx: AdminContext,
+  code: string,
+): Promise<Response> {
+  const body = await readJson(req);
+  const db = serviceClient();
+  const { data: existing, error: selErr } = await db
+    .from('affiliates')
+    .select(AFFILIATE_COLUMNS)
+    .eq('code', code.toUpperCase())
+    .maybeSingle();
+  if (selErr) throw badRequest(selErr.message);
+  if (!existing) throw notFound('Affiliate not found.');
+  const before = existing as AffiliateRow;
+
+  const patch: Record<string, unknown> = {};
+  if (body.name !== undefined) {
+    const v = str(body.name);
+    if (!v) throw unprocessable('name cannot be empty');
+    patch.name = v;
+  }
+  if (body.email !== undefined) {
+    const v = str(body.email);
+    if (!v) throw unprocessable('email cannot be empty');
+    patch.email = v;
+  }
+  if (body.handle !== undefined) {
+    const v = str(body.handle);
+    if (!v) throw unprocessable('handle cannot be empty');
+    patch.handle = v;
+  }
+  if (body.commissionPercent !== undefined) {
+    const v = intInRange(body.commissionPercent, 0, 100);
+    if (v === null) throw unprocessable('commissionPercent must be 0-100');
+    patch.commission_percent = v;
+  }
+  if (body.landingSlug !== undefined) {
+    const v = slug(str(body.landingSlug));
+    if (!v) throw unprocessable('landingSlug cannot be empty');
+    if (v !== before.landing_slug) {
+      const { data: dups, error: dupErr } = await db
+        .from('affiliates')
+        .select('id')
+        .eq('landing_slug', v)
+        .limit(1);
+      if (dupErr) throw badRequest(dupErr.message);
+      if (dups && dups.length > 0) throw conflict('That landing slug is already in use.');
+    }
+    patch.landing_slug = v;
+  }
+  // The Stripe coupon (percent_off) and promotion code (code) are immutable.
+  if (
+    body.discountPercent !== undefined &&
+    Number(body.discountPercent) !== before.discount_percent
+  ) {
+    throw unprocessable(
+      'discountPercent cannot be changed after creation (the Stripe coupon is immutable); archive and recreate to change the discount.',
+    );
+  }
+  if (body.code !== undefined && str(body.code).toUpperCase() !== before.code) {
+    throw unprocessable(
+      'code cannot be changed after creation (the Stripe promotion code is immutable); archive and recreate to change the code.',
+    );
+  }
+
+  if (Object.keys(patch).length === 0) return ok(toAffiliate(before));
+
+  const { data, error } = await db
+    .from('affiliates')
+    .update(patch)
+    .eq('code', code.toUpperCase())
+    .select(AFFILIATE_COLUMNS)
+    .single();
+  if (error) {
+    if ((error as { code?: string }).code === '23505') {
+      throw conflict('Landing slug already in use.');
+    }
+    throw badRequest(error.message);
+  }
+
+  await writeAudit(ctx, {
+    action: 'affiliate.update',
+    targetType: 'affiliate',
+    targetId: code.toUpperCase(),
+    before: toAffiliate(before),
+    after: data,
+  });
+  return ok(toAffiliate(data as AffiliateRow));
+}
+
+// DELETE /admin/affiliates/{code} - archive (soft delete). Keeps the row and its
+// attributed redemptions, hides it from the default list, and deactivates the
+// Stripe promotion code so it stops redeeming. Idempotent.
+export async function archiveAffiliate(
+  _req: Request,
+  ctx: AdminContext,
+  code: string,
+): Promise<Response> {
+  const db = serviceClient();
+  const { data: existing, error: selErr } = await db
+    .from('affiliates')
+    .select('code, status, archived_at, stripe_promotion_code_id')
+    .eq('code', code.toUpperCase())
+    .maybeSingle();
+  if (selErr) throw badRequest(selErr.message);
+  if (!existing) throw notFound('Affiliate not found.');
+
+  // Already archived: return the current row (idempotent, no audit churn).
+  if (existing.archived_at) {
+    const { data } = await db
+      .from('affiliates')
+      .select(AFFILIATE_COLUMNS)
+      .eq('code', code.toUpperCase())
+      .single();
+    return ok(toAffiliate(data as AffiliateRow));
+  }
+
+  // Stop the code redeeming the moment it's archived.
+  if (existing.stripe_promotion_code_id) {
+    await setPromotionCodeActive(stripeKey(), existing.stripe_promotion_code_id as string, false);
+  }
+
+  const { data, error } = await db
+    .from('affiliates')
+    .update({ archived_at: new Date().toISOString(), status: 'paused' })
+    .eq('code', code.toUpperCase())
+    .select(AFFILIATE_COLUMNS)
+    .single();
+  if (error) throw badRequest(error.message);
+
+  await writeAudit(ctx, {
+    action: 'affiliate.archive',
+    targetType: 'affiliate',
+    targetId: code.toUpperCase(),
+    before: { status: existing.status, archivedAt: null },
+    after: { status: 'paused', archivedAt: (data as AffiliateRow).archived_at },
   });
   return ok(toAffiliate(data as AffiliateRow));
 }

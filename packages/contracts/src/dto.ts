@@ -133,6 +133,12 @@ export interface AccountSummary {
   two_factor_enrolled: boolean;
   /** When a data-deletion was requested, if ever; null otherwise. */
   deletion_requested_at: string | null;
+  /**
+   * Account-level keep ("keep my memories"): all the customer's data is retained
+   * until this date. Null = default per-trip disposal applies. Set by buying the
+   * keep-data product.
+   */
+  data_kept_until: string | null;
   /** Account creation timestamp (ISO 8601). */
   created_at: string;
 }

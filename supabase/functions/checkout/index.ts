@@ -40,19 +40,31 @@ Deno.serve(async (req) => {
     }
 
     let priceId = typeof body.price_id === 'string' ? body.price_id.trim() : '';
-    // The FE may send a stable catalogue product_id instead; resolve it to this
-    // environment's live Stripe price via product_catalogue.
     const productId = typeof body.product_id === 'string' ? body.product_id.trim() : '';
-    if (!priceId && productId) {
+
+    // A stable catalogue key may arrive in `product_id` (preferred) or in
+    // `price_id` (the FE shares the contract ProductId keys, e.g.
+    // "price_holiday_ai"). If the supplied value matches a catalogue product_id,
+    // map it to this environment's live Stripe price; otherwise `price_id` is
+    // used as a literal Stripe price id.
+    const catalogueKey = productId || priceId;
+    if (catalogueKey) {
       const { data: cat } = await client
         .from('product_catalogue')
         .select('stripe_price_id, active')
-        .eq('product_id', productId)
+        .eq('product_id', catalogueKey)
         .maybeSingle();
-      if (!cat || !cat.active || !cat.stripe_price_id) {
+      if (cat) {
+        if (!cat.active || !cat.stripe_price_id) {
+          return error('unknown_price', 'Product is not available for purchase.', 400, [
+            catalogueKey,
+          ]);
+        }
+        priceId = cat.stripe_price_id as string;
+      } else if (productId && !priceId) {
+        // An explicit product_id that has no catalogue row.
         return error('unknown_price', 'Product is not available for purchase.', 400, [productId]);
       }
-      priceId = cat.stripe_price_id as string;
     }
     if (!priceId) {
       return error('validation_error', 'price_id or product_id is required.', 422, [
@@ -88,15 +100,10 @@ Deno.serve(async (req) => {
       return error('unknown_price', 'No such purchasable product.', 400, [priceId]);
     }
 
-    // Trip scoping. A keep-token always applies to a specific trip; tier
-    // products may carry a trip but don't require one. If given, the caller must
-    // own the trip (RLS hides others').
+    // Trip scoping. Keep-tokens are now account-level (they preserve all the
+    // customer's data), so they no longer require a trip. Tier products may
+    // carry a trip but don't require one. If given, the caller must own it.
     const tripId = typeof body.trip_id === 'string' ? body.trip_id : undefined;
-    if (p.kind === 'keep' && !tripId) {
-      return error('validation_error', 'trip_id is required to buy a keep-token.', 422, [
-        'trip_id',
-      ]);
-    }
     if (tripId) {
       const { data: trip } = await client.from('trips').select('id').eq('id', tripId).maybeSingle();
       if (!trip) return error('not_found', 'Trip not found or not visible to the caller.', 404);
