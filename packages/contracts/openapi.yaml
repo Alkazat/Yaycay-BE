@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Yaycay API
-  version: 0.28.0
+  version: 0.29.0
   description: >
     Yaycay back-end HTTP API. The v0.1 surface (Phase 0) is the free-demo
     generator, signup/lead capture, the 2FA verify step, and trip + trip-content
@@ -2028,6 +2028,84 @@ paths:
         '422':
           $ref: '#/components/responses/ValidationError'
 
+  /profiles/{profileId}/login:
+    parameters:
+      - name: profileId
+        in: path
+        required: true
+        schema: { type: string }
+    get:
+      operationId: getExplorerLogin
+      tags: [trips]
+      summary: Whether this profile has its own explorer login.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: The login status for the profile.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExplorerLoginStatus'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    post:
+      operationId: enableExplorerLogin
+      tags: [trips]
+      summary: Give this profile its own magic-link login.
+      description: >
+        Provisions a real, magic-link auth account for the explorer at the given
+        email and links it to this profile, granting read-only access to the
+        family's trips and their own profile. Idempotent: if an active login
+        already exists it is returned unchanged (200). `action_link` is a one-time
+        sign-in link to hand to the explorer, present only on fresh provisioning.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExplorerLoginRequest'
+      responses:
+        '200':
+          description: An already-active login (unchanged).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExplorerLoginEnableResponse'
+        '201':
+          description: A newly provisioned login.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExplorerLoginEnableResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+    delete:
+      operationId: disableExplorerLogin
+      tags: [trips]
+      summary: Revoke this profile's explorer login.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: The login after it was revoked.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExplorerLoginStatus'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
   /trips/{tripId}/chat:
     parameters:
       - $ref: '#/components/parameters/TripId'
@@ -2501,6 +2579,49 @@ components:
           type: string
           nullable: true
           description: ISO timestamp when the lock lifts, or null when not locked.
+
+    ExplorerLoginRequest:
+      type: object
+      additionalProperties: false
+      required: [email]
+      properties:
+        email:
+          type: string
+          format: email
+          description: The email the explorer's magic-link login is provisioned for.
+
+    ExplorerLoginStatus:
+      type: object
+      additionalProperties: false
+      required: [enabled, email, invited_at, disabled_at]
+      properties:
+        enabled:
+          type: boolean
+          description: Whether this profile currently has an active explorer login.
+        email:
+          type: string
+          nullable: true
+          description: The login's email, or null when no login exists.
+        invited_at:
+          type: string
+          nullable: true
+          description: ISO timestamp the login was provisioned, or null.
+        disabled_at:
+          type: string
+          nullable: true
+          description: ISO timestamp the login was revoked, or null when active/absent.
+
+    ExplorerLoginEnableResponse:
+      allOf:
+        - $ref: '#/components/schemas/ExplorerLoginStatus'
+        - type: object
+          properties:
+            action_link:
+              type: string
+              nullable: true
+              description: >
+                A one-time magic-link sign-in URL to hand to the explorer. Present
+                only when the login was freshly provisioned; null otherwise.
 
     TripProgress:
       type: object

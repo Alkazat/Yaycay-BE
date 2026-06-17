@@ -516,6 +516,37 @@ export interface PinVerifyResponse {
   locked_until: string | null;
 }
 
+/** Request body for `POST /profiles/{id}/login` (give a profile its own login). */
+export interface ExplorerLoginRequest {
+  /** The email the explorer's magic-link login is provisioned for. */
+  email: string;
+}
+
+/**
+ * Status of a profile's optional own login (`GET|POST|DELETE /profiles/{id}/login`).
+ * A linked explorer gets read-only access to the family's trips and their own
+ * profile; no login means the explorer uses the parent account + profile switch.
+ */
+export interface ExplorerLoginStatus {
+  /** Whether this profile currently has an active explorer login. */
+  enabled: boolean;
+  /** The login's email, or `null` when no login exists. */
+  email: string | null;
+  /** ISO timestamp the login was provisioned, or `null`. */
+  invited_at: string | null;
+  /** ISO timestamp the login was revoked, or `null` when active/absent. */
+  disabled_at: string | null;
+}
+
+/** Response for `POST /profiles/{id}/login`. Carries the action link on fresh provisioning. */
+export interface ExplorerLoginEnableResponse extends ExplorerLoginStatus {
+  /**
+   * A one-time magic-link sign-in URL to hand to the explorer. Present only when
+   * the login was freshly provisioned; `null` otherwise.
+   */
+  action_link?: string | null;
+}
+
 /** Per-profile state for a trip: which items are done and the active mode. */
 export interface TripProgress {
   /** The child this progress belongs to; null for an unscoped/household row. */
