@@ -32,6 +32,8 @@ import type { TripContent } from '../_shared/content-types.ts';
 import { serviceClient } from '../_shared/service-client.ts';
 import { assertUnderCap, CapReachedError, finishJob, startJob } from '../_shared/ai-jobs.ts';
 import { briefText, INTENT_FIELDS, readIntent } from '../_shared/trip-intent.ts';
+import { optionalEnv } from '../_shared/env.ts';
+import { sendEmail } from '../_shared/brevo.ts';
 
 const TRIP_COLUMNS =
   'id, destination, start_date, end_date, timezone, currency, tier, status, retention_expires_at, created_at';
@@ -364,6 +366,24 @@ Deno.serve(async (req) => {
       return error('method_not_allowed', 'Use GET or PUT.', 405);
     }
 
+    // /trips/:id/archive - soft archive/restore (status only, never a delete).
+    if (seg.length === 2 && seg[1] === 'archive') {
+      if (req.method !== 'POST') return error('method_not_allowed', 'Use POST.', 405);
+      return await handleArchive(client, userId, tripId, req);
+    }
+
+    // /trips/:id/duplicate - copy into a fresh free/draft trip the caller owns.
+    if (seg.length === 2 && seg[1] === 'duplicate') {
+      if (req.method !== 'POST') return error('method_not_allowed', 'Use POST.', 405);
+      return await handleDuplicate(client, userId, tripId, req);
+    }
+
+    // /trips/:id/share - mint (or reuse) a public read-only share link.
+    if (seg.length === 2 && seg[1] === 'share') {
+      if (req.method !== 'POST') return error('method_not_allowed', 'Use POST.', 405);
+      return await handleShare(client, userId, tripId, req);
+    }
+
     return error('not_found', 'No such route.', 404);
   } catch (err) {
     if (err instanceof UnauthorizedError) {
@@ -397,6 +417,162 @@ Deno.serve(async (req) => {
     return error('internal_error', 'Unexpected error.', 500);
   }
 });
+
+// ----- Trip lifecycle: archive / duplicate / share --------------------------
+// (UserClient is declared with the AI surfaces below.)
+
+// True when the owner has an active account-level keep (blankets every trip).
+async function isAccountKept(userId: string): Promise<boolean> {
+  const { data: acct } = await serviceClient()
+    .schema('identity')
+    .from('accounts')
+    .select('retention_expires_at')
+    .eq('user_id', userId)
+    .maybeSingle();
+  return !!acct?.retention_expires_at && new Date(acct.retention_expires_at).getTime() > Date.now();
+}
+
+// A URL-safe, non-guessable share token (32 random bytes, base64url).
+function newShareToken(): string {
+  const bytes = new Uint8Array(32);
+  crypto.getRandomValues(bytes);
+  let bin = '';
+  for (const b of bytes) bin += String.fromCharCode(b);
+  return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+// POST /trips/:id/archive { archived } -> updated TripSummary. Soft state; the
+// trip stays listable (status 'archived') so the FE can show the Archive list.
+async function handleArchive(
+  client: UserClient,
+  userId: string,
+  tripId: string,
+  req: Request,
+): Promise<Response> {
+  const body = await readJson(req);
+  if (typeof body.archived !== 'boolean') {
+    throw new ValidationError(['archived (boolean) is required']);
+  }
+  // Restore lands on 'ready' (the pre-archive status is not tracked).
+  const status = body.archived ? 'archived' : 'ready';
+  const { data, error: dbErr } = await client
+    .from('trips')
+    .update({ status })
+    .eq('id', tripId)
+    .select(SUMMARY_COLUMNS)
+    .maybeSingle();
+  if (dbErr) throw new Error(dbErr.message);
+  if (!data) throw new NotFoundError();
+  return json(toSummary(data as Record<string, unknown>, await isAccountKept(userId)));
+}
+
+// POST /trips/:id/duplicate -> a fresh free/draft trip the caller owns, with the
+// source destination/dates and a deep copy of the day content.
+async function handleDuplicate(
+  client: UserClient,
+  userId: string,
+  tripId: string,
+  _req: Request,
+): Promise<Response> {
+  const { data: src, error: e1 } = await client
+    .from('trips')
+    .select('destination, start_date, end_date, timezone, currency')
+    .eq('id', tripId)
+    .maybeSingle();
+  if (e1) throw new Error(e1.message);
+  if (!src) throw new NotFoundError();
+
+  const { data: srcContent } = await client
+    .from('trip_content')
+    .select('content')
+    .eq('trip_id', tripId)
+    .maybeSingle();
+
+  // Fresh trip: tier/status fall to their column defaults (free/draft).
+  const { data: copy, error: e2 } = await client
+    .from('trips')
+    .insert({
+      user_id: userId,
+      destination: src.destination,
+      start_date: src.start_date,
+      end_date: src.end_date,
+      timezone: src.timezone,
+      currency: src.currency,
+    })
+    .select(TRIP_COLUMNS)
+    .single();
+  if (e2) throw new Error(e2.message);
+
+  // Deep copy via JSON round-trip so the copy shares no references.
+  const content = srcContent?.content ? JSON.parse(JSON.stringify(srcContent.content)) : null;
+  const { error: e3 } = await client
+    .from('trip_content')
+    .insert({ trip_id: copy.id, user_id: userId, content });
+  if (e3) throw new Error(e3.message);
+
+  const summary = toSummary(
+    { ...(copy as Record<string, unknown>), trip_content: content ? [{ content }] : null },
+    await isAccountKept(userId),
+  );
+  return json(summary, 201);
+}
+
+// POST /trips/:id/share { email? } -> { share_url, emailed }. Reuses the trip's
+// active link if one exists, else mints a new token; emails an invite when an
+// address is given.
+async function handleShare(
+  client: UserClient,
+  userId: string,
+  tripId: string,
+  req: Request,
+): Promise<Response> {
+  const body = await readJson(req);
+  const email = typeof body.email === 'string' && body.email.trim() ? body.email.trim() : null;
+
+  const { data: trip } = await client
+    .from('trips')
+    .select('id, destination')
+    .eq('id', tripId)
+    .maybeSingle();
+  if (!trip) throw new NotFoundError();
+  const destination = (trip as { destination?: string | null }).destination ?? '';
+
+  let token: string;
+  const { data: existing } = await client
+    .from('trip_shares')
+    .select('token')
+    .eq('trip_id', tripId)
+    .is('revoked_at', null)
+    .maybeSingle();
+  if (existing?.token) {
+    token = existing.token as string;
+  } else {
+    token = newShareToken();
+    const { error: insErr } = await client
+      .from('trip_shares')
+      .insert({ token, trip_id: tripId, user_id: userId });
+    if (insErr) throw new Error(insErr.message);
+  }
+
+  const base = optionalEnv('PUBLIC_WEB_ORIGIN') || req.headers.get('origin') || '';
+  const shareUrl = `${base}/shared/${token}`;
+
+  let emailed = false;
+  if (email) {
+    try {
+      emailed = await sendEmail({
+        to: email,
+        subject: 'A Yaycay trip has been shared with you',
+        html:
+          `<p>A trip${destination ? ` to ${destination}` : ''} has been shared with you on Yaycay.</p>` +
+          `<p><a href="${shareUrl}">View the itinerary</a></p>`,
+      });
+    } catch (err) {
+      console.error('share invite email failed', err);
+    }
+  }
+  return json({ share_url: shareUrl, emailed });
+}
 
 // ----- AI surfaces -----------------------------------------------------------
 

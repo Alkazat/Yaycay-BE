@@ -51,6 +51,32 @@ export interface ListTripsResponse {
   trips: TripSummary[];
 }
 
+/** Body for `POST /trips/:id/archive`. Archiving is a soft state, never a delete. */
+export interface ArchiveTripRequest {
+  archived: boolean;
+}
+
+/** Body for `POST /trips/:id/share`. With `email`, BE also sends an invite. */
+export interface ShareTripRequest {
+  email?: string;
+}
+
+/** Response of `POST /trips/:id/share`. */
+export interface ShareTripResponse {
+  /** Public, read-only link: `<origin>/shared/<token>`. */
+  share_url: string;
+  /** True when an invite email was sent to the supplied address. */
+  emailed: boolean;
+}
+
+/** Public resolve of a shared trip (`GET /shared/:token`). Read-only. */
+export interface SharedTrip {
+  /** Friendly display name for the "Shared by ..." line. */
+  shared_by: string;
+  /** The same TripContent the owner view renders, shown read-only. */
+  content: TripContent;
+}
+
 export interface CreateTripRequest {
   destination: string;
   start_date?: string;

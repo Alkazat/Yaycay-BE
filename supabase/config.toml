@@ -78,6 +78,11 @@ verify_jwt = true
 [functions.catalogue]
 verify_jwt = false
 
+# Public read-only resolve of a shared trip by token (no auth; the token is the
+# capability). Returns the itinerary + the owner's display name only.
+[functions.shared]
+verify_jwt = false
+
 # The owner's own account row (read + recovery-email update); JWT-verified.
 [functions.account]
 verify_jwt = true
