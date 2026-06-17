@@ -266,6 +266,8 @@ export interface Affiliate {
   /** Website /go/<slug>. */
   landingSlug: string;
   status: AffiliateStatus;
+  /** Set when the affiliate has been archived (soft-deleted); null otherwise. */
+  archivedAt?: string | null;
   createdAt: string;
 }
 
@@ -277,6 +279,20 @@ export interface CreateAffiliateInput {
   discountPercent: number;
   commissionPercent: number;
   code?: string;
+  landingSlug?: string;
+}
+
+/**
+ * Request body for `PUT /admin/affiliates/{code}` (edit). All fields optional;
+ * only provided fields change. `discountPercent` and `code` are fixed after
+ * creation (the Stripe coupon/promotion code are immutable) — archive and
+ * recreate to change them.
+ */
+export interface UpdateAffiliateInput {
+  name?: string;
+  email?: string;
+  handle?: string;
+  commissionPercent?: number;
   landingSlug?: string;
 }
 
