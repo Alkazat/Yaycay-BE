@@ -195,12 +195,15 @@ async function handleDeletionRequest(svc: Svc, userId: string, cancel: boolean):
 async function handleTransactions(svc: Svc, userId: string): Promise<Response> {
   const { data, error: dbErr } = await svc
     .from('purchases')
-    .select('id, created_at, amount_usd, tier, price_id, products(name)')
+    .select(
+      'id, created_at, amount_usd, tier, price_id, trip_id, products(name), trips(destination)',
+    )
     .eq('user_id', userId)
     .order('created_at', { ascending: false });
   if (dbErr) throw new Error(dbErr.message);
   const transactions = (data ?? []).map((p) => {
     const prod = Array.isArray(p.products) ? p.products[0] : p.products;
+    const trip = Array.isArray(p.trips) ? p.trips[0] : p.trips;
     const description =
       (prod as { name?: string } | null)?.name ?? TIER_LABEL[p.tier as string] ?? 'Purchase';
     return {
@@ -209,6 +212,8 @@ async function handleTransactions(svc: Svc, userId: string): Promise<Response> {
       description,
       amount_usd: p.amount_usd != null ? Number(p.amount_usd) : 0,
       status: 'paid' as const,
+      trip_id: (p.trip_id as string | null) ?? null,
+      trip_name: (trip as { destination?: string } | null)?.destination ?? null,
     };
   });
   return json({ transactions });

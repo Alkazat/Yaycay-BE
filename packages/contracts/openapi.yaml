@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Yaycay API
-  version: 0.28.0
+  version: 0.29.0
   description: >
     Yaycay back-end HTTP API. The v0.1 surface (Phase 0) is the free-demo
     generator, signup/lead capture, the 2FA verify step, and trip + trip-content
@@ -3472,13 +3472,19 @@ components:
     Transaction:
       type: object
       additionalProperties: false
-      required: [id, date, description, amount_usd, status]
+      required: [id, date, description, amount_usd, status, trip_id, trip_name]
       properties:
         id: { type: string }
         date: { type: string, format: date-time }
         description: { type: string }
         amount_usd: { type: number }
         status: { type: string, enum: [paid, refunded, pending] }
+        trip_id:
+          type: [string, 'null']
+          description: The trip this charge bought, when applicable.
+        trip_name:
+          type: [string, 'null']
+          description: Display name (destination) of that trip, when applicable.
 
     TransactionsResponse:
       type: object
