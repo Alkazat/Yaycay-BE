@@ -419,8 +419,7 @@ Deno.serve(async (req) => {
 });
 
 // ----- Trip lifecycle: archive / duplicate / share --------------------------
-
-type UserClient = Awaited<ReturnType<typeof userContext>>['client'];
+// (UserClient is declared with the AI surfaces below.)
 
 // True when the owner has an active account-level keep (blankets every trip).
 async function isAccountKept(userId: string): Promise<boolean> {
