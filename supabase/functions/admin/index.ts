@@ -149,6 +149,8 @@ async function route(
       } else if (!b) {
         if (method === 'GET') return affiliates.getAffiliate(req, ctx, a);
         if (method === 'PATCH') return affiliates.setAffiliateStatus(req, ctx, a);
+        if (method === 'PUT') return affiliates.updateAffiliate(req, ctx, a);
+        if (method === 'DELETE') return affiliates.archiveAffiliate(req, ctx, a);
       } else if (b === 'redemptions' && method === 'GET') {
         return affiliates.listRedemptions(req, ctx, a);
       } else if (b === 'report' && method === 'POST') {
