@@ -305,7 +305,13 @@ async function verifyPin(client: ProfileClient, id: string, req: Request): Promi
 // Provisioning mints the auth.users via the service role; clients never write
 // public.explorer_logins directly.
 
-type LoginRow = { id?: string; auth_user_id?: string; email?: string; invited_at?: string; disabled_at?: string | null };
+type LoginRow = {
+  id?: string;
+  auth_user_id?: string;
+  email?: string;
+  invited_at?: string;
+  disabled_at?: string | null;
+};
 
 function loginStatus(row: LoginRow | null): Record<string, unknown> {
   if (!row) return { enabled: false, email: null, invited_at: null, disabled_at: null };
@@ -318,7 +324,10 @@ function loginStatus(row: LoginRow | null): Record<string, unknown> {
 }
 
 // Confirm the caller owns the profile (RLS on the user client); 404 otherwise.
-async function assertOwnsProfile(client: ProfileClient, profileId: string): Promise<Response | null> {
+async function assertOwnsProfile(
+  client: ProfileClient,
+  profileId: string,
+): Promise<Response | null> {
   const { data, error: selErr } = await client
     .from('child_profiles')
     .select('id')
@@ -389,7 +398,12 @@ async function enableLogin(
 
   const { data: row, error: insErr } = await svc
     .from('explorer_logins')
-    .insert({ child_profile_id: profileId, auth_user_id: authUserId, parent_user_id: userId, email })
+    .insert({
+      child_profile_id: profileId,
+      auth_user_id: authUserId,
+      parent_user_id: userId,
+      email,
+    })
     .select('email, invited_at, disabled_at')
     .single();
   if (insErr) {
