@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Yaycay API
-  version: 0.30.0
+  version: 0.31.0
   description: >
     Yaycay back-end HTTP API. The v0.1 surface (Phase 0) is the free-demo
     generator, signup/lead capture, the 2FA verify step, and trip + trip-content
@@ -340,6 +340,33 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/SharedTrip' }
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /shared/{token}/duplicate:
+    parameters:
+      - name: token
+        in: path
+        required: true
+        schema: { type: string }
+    post:
+      operationId: duplicateSharedTrip
+      tags: [trips]
+      summary: Duplicate a shared trip into the caller's account.
+      description: >
+        Copies the shared trip into a fresh free/draft trip the caller owns
+        (same shape as `POST /trips/{tripId}/duplicate`). Requires a Supabase
+        JWT. 404 for an unknown, revoked, or expired token.
+      security:
+        - bearerAuth: []
+      responses:
+        '201':
+          description: The new trip.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TripSummary' }
+        '401':
+          $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/NotFound'
 
