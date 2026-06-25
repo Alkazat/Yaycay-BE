@@ -85,6 +85,7 @@ async function route(
 
     case 'customers':
       if (!a && method === 'GET') return customers.searchCustomers(req, ctx);
+      if (a === 'invite' && !b && method === 'POST') return customers.inviteCustomer(req, ctx);
       if (a && b === 'deletion-request' && method === 'POST') {
         return customers.requestCustomerDeletion(req, ctx, a);
       }
