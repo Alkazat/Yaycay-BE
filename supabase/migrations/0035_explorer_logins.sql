@@ -1,4 +1,4 @@
--- 0034_explorer_logins.sql
+-- 0035_explorer_logins.sql
 -- Optional per-explorer logins. A child_profile can be linked to its OWN
 -- auth.users account (a real magic-link login) so an explorer can sign in and
 -- explore the family's trips themselves. The owning parent account still owns
