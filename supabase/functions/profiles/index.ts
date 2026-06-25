@@ -7,6 +7,7 @@
 
 import { error, handlePreflight, json } from '../_shared/http.ts';
 import { userContext, UnauthorizedError } from '../_shared/user-client.ts';
+import { serviceClient } from '../_shared/service-client.ts';
 
 const PROFILE_COLUMNS =
   'id, name, avatar, age, mode, type, pin_hash, interests, dietary, medical, created_at, updated_at';
@@ -14,6 +15,7 @@ const EXPLORER_MODES = ['little', 'standard', 'explorer', 'explorer_plus'];
 const PROFILE_TYPES = ['child', 'parent_carer'];
 
 const PIN_RE = /^\d{4}$/;
+const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 const MAX_PIN_ATTEMPTS = 5;
 const PIN_LOCK_MINUTES = 15;
 
@@ -183,6 +185,14 @@ Deno.serve(async (req) => {
       return error('method_not_allowed', 'Use PATCH or DELETE.', 405);
     }
 
+    // /profiles/:id/login - the profile's optional own magic-link login.
+    if (seg.length === 2 && seg[1] === 'login') {
+      if (req.method === 'GET') return await getLogin(client, seg[0]);
+      if (req.method === 'POST') return await enableLogin(client, userId, seg[0], req);
+      if (req.method === 'DELETE') return await disableLogin(client, seg[0]);
+      return error('method_not_allowed', 'Use GET, POST or DELETE.', 405);
+    }
+
     // /profiles/:id/pin - set/change a parent/carer PIN (write-only).
     if (seg.length === 2 && seg[1] === 'pin' && req.method === 'POST') {
       return await setPin(client, seg[0], req);
@@ -285,6 +295,160 @@ async function verifyPin(client: ProfileClient, id: string, req: Request): Promi
     verified: false,
     attempts_remaining: MAX_PIN_ATTEMPTS - attempts,
     locked_until: null,
+  });
+}
+
+// ----- Explorer logins (a profile's optional own magic-link account) --------
+// A child_profile can be linked to its OWN auth.users so the explorer can sign
+// in and explore the family's trips read-only. The parent account still owns the
+// data; RLS (migration 0034) scopes a linked explorer to just their slice.
+// Provisioning mints the auth.users via the service role; clients never write
+// public.explorer_logins directly.
+
+type LoginRow = {
+  id?: string;
+  auth_user_id?: string;
+  email?: string;
+  invited_at?: string;
+  disabled_at?: string | null;
+};
+
+function loginStatus(row: LoginRow | null): Record<string, unknown> {
+  if (!row) return { enabled: false, email: null, invited_at: null, disabled_at: null };
+  return {
+    enabled: !row.disabled_at,
+    email: row.email ?? null,
+    invited_at: row.invited_at ?? null,
+    disabled_at: row.disabled_at ?? null,
+  };
+}
+
+// Confirm the caller owns the profile (RLS on the user client); 404 otherwise.
+async function assertOwnsProfile(
+  client: ProfileClient,
+  profileId: string,
+): Promise<Response | null> {
+  const { data, error: selErr } = await client
+    .from('child_profiles')
+    .select('id')
+    .eq('id', profileId)
+    .maybeSingle();
+  if (selErr) throw new Error(selErr.message);
+  if (!data) return error('not_found', 'Profile not found.', 404);
+  return null;
+}
+
+async function getLogin(client: ProfileClient, profileId: string): Promise<Response> {
+  const missing = await assertOwnsProfile(client, profileId);
+  if (missing) return missing;
+  const { data, error: selErr } = await client
+    .from('explorer_logins')
+    .select('email, invited_at, disabled_at')
+    .eq('child_profile_id', profileId)
+    .is('disabled_at', null)
+    .maybeSingle();
+  if (selErr) throw new Error(selErr.message);
+  return json(loginStatus((data as LoginRow | null) ?? null));
+}
+
+async function enableLogin(
+  client: ProfileClient,
+  userId: string,
+  profileId: string,
+  req: Request,
+): Promise<Response> {
+  const body = await readJson(req);
+  const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
+  if (!EMAIL_RE.test(email)) throw new ValidationError(['email must be a valid email address']);
+
+  const missing = await assertOwnsProfile(client, profileId);
+  if (missing) return missing;
+
+  // Idempotent: an existing active login is returned unchanged (no new link).
+  const { data: existing, error: exErr } = await client
+    .from('explorer_logins')
+    .select('email, invited_at, disabled_at')
+    .eq('child_profile_id', profileId)
+    .is('disabled_at', null)
+    .maybeSingle();
+  if (exErr) throw new Error(exErr.message);
+  if (existing) return json({ ...loginStatus(existing as LoginRow), action_link: null }, 200);
+
+  const svc = serviceClient();
+
+  // Provision (or resolve) the explorer's auth user + a one-time sign-in link.
+  // generateLink(magiclink) creates the user if needed and returns the action link.
+  const link = await svc.auth.admin.generateLink({ type: 'magiclink', email });
+  if (link.error || !link.data?.user) {
+    throw new Error(link.error?.message ?? 'Could not provision the explorer login.');
+  }
+  const authUserId = link.data.user.id;
+  const actionLink = (link.data.properties?.action_link as string | undefined) ?? null;
+
+  // Never attach an explorer login to an account that already owns data (e.g. a
+  // parent). A freshly-created explorer user owns nothing, so this passes.
+  const { count, error: cntErr } = await svc
+    .from('child_profiles')
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', authUserId);
+  if (cntErr) throw new Error(cntErr.message);
+  if ((count ?? 0) > 0) {
+    return error('validation_error', 'That email already belongs to a Yaycay account.', 422);
+  }
+
+  const { data: row, error: insErr } = await svc
+    .from('explorer_logins')
+    .insert({
+      child_profile_id: profileId,
+      auth_user_id: authUserId,
+      parent_user_id: userId,
+      email,
+    })
+    .select('email, invited_at, disabled_at')
+    .single();
+  if (insErr) {
+    if (String(insErr.message).includes('explorer_logins_auth_user_key')) {
+      return error('validation_error', 'That email is already used by another explorer.', 422);
+    }
+    throw new Error(insErr.message);
+  }
+  return json({ ...loginStatus(row as LoginRow), action_link: actionLink }, 201);
+}
+
+async function disableLogin(client: ProfileClient, profileId: string): Promise<Response> {
+  // The parent can read their own link (RLS); use it to find the active one.
+  const { data: link, error: selErr } = await client
+    .from('explorer_logins')
+    .select('id, auth_user_id, email, invited_at')
+    .eq('child_profile_id', profileId)
+    .is('disabled_at', null)
+    .maybeSingle();
+  if (selErr) throw new Error(selErr.message);
+  if (!link) return error('not_found', 'No active login for this profile.', 404);
+  const row = link as LoginRow;
+
+  const svc = serviceClient();
+  const disabledAt = new Date().toISOString();
+  const { error: upErr } = await svc
+    .from('explorer_logins')
+    .update({ disabled_at: disabledAt })
+    .eq('id', row.id as string);
+  if (upErr) throw new Error(upErr.message);
+
+  // Best-effort: ban the explorer's auth user so any live session or pending
+  // magic link stops working immediately. RLS already revokes data access, so a
+  // failure here is non-fatal.
+  try {
+    await svc.auth.admin.updateUserById(row.auth_user_id as string, { ban_duration: '876000h' });
+  } catch (_e) {
+    // Soft-disable above is the source of truth; the ban is defence in depth.
+  }
+
+  return json({
+    enabled: false,
+    email: row.email ?? null,
+    invited_at: row.invited_at ?? null,
+    disabled_at: disabledAt,
   });
 }
 
