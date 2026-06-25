@@ -184,6 +184,18 @@ export interface CustomerSummary {
 }
 
 /**
+ * Admin-initiated onboarding of a customer. Identity is invite-only (magic-link
+ * + mandatory 2FA, no admin-set passwords), so this provisions a pending account
+ * and emails a sign-in link; the person completes setup (2FA) on first sign-in.
+ * Idempotent on email: re-inviting an existing account resends the link.
+ */
+export interface InviteCustomerInput {
+  email: string;
+  /** Optional, to greet them by name in the invite email. */
+  name?: string;
+}
+
+/**
  * What a catalogue product confers on purchase: a trip `tier` entitlement, or a
  * `keep`-token that extends a trip's data retention by `extendsMonths`.
  */
