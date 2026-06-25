@@ -49,6 +49,45 @@ const INSTRUCTIONS = [
   'add/update/move tools to build the itinerary.',
 ].join('\n');
 
+// A ready-made planning prompt encoding Yaycay's house style, so the assistant
+// can "plan a day for this family" without the parent re-explaining the rules.
+const PROMPTS = [
+  {
+    name: 'plan_a_day',
+    description: 'Draft a balanced, age-appropriate day that fits the family brief.',
+    arguments: [
+      { name: 'focus', description: 'Optional theme or anchor for the day.', required: false },
+    ],
+  },
+];
+
+function renderPrompt(
+  name: string,
+  args: Record<string, unknown>,
+): { description: string; messages: unknown[] } | null {
+  if (name !== 'plan_a_day') return null;
+  const focus = typeof args.focus === 'string' && args.focus.trim() ? args.focus.trim() : '';
+  const focusLine = focus ? ` The family would like the day to centre on: ${focus}.` : '';
+  return {
+    description: 'Plan a day that fits the family brief.',
+    messages: [
+      {
+        role: 'user',
+        content: {
+          type: 'text',
+          text:
+            "First call get_trip_brief to load the family's intent, then propose one " +
+            'day as a few Moments (morning / midday / afternoon / evening) with a light, ' +
+            'realistic pace. Balance kid, shared, and adult activities, respect any ' +
+            'stated constraints and no-gos, and keep it age-appropriate.' +
+            focusLine +
+            ' Present the plan for the parent to approve before you add it with the tools.',
+        },
+      },
+    ],
+  };
+}
+
 function rpcResult(id: unknown, result: unknown): Response {
   return json({ jsonrpc: '2.0', id, result });
 }
@@ -238,7 +277,7 @@ Deno.serve(async (req) => {
   if (method === 'initialize') {
     return rpcResult(id, {
       protocolVersion: '2024-11-05',
-      capabilities: { tools: {} },
+      capabilities: { tools: {}, prompts: {}, resources: {} },
       serverInfo: SERVER_INFO,
       instructions: INSTRUCTIONS,
     });
@@ -248,6 +287,28 @@ Deno.serve(async (req) => {
   }
   if (method === 'tools/list') {
     return rpcResult(id, { tools: TOOLS });
+  }
+  if (method === 'prompts/list') {
+    return rpcResult(id, { prompts: PROMPTS });
+  }
+  if (method === 'prompts/get') {
+    const name = params.name as string;
+    const args = (params.arguments ?? {}) as Record<string, unknown>;
+    const rendered = renderPrompt(name, args);
+    if (!rendered) return rpcError(id, -32602, `Unknown prompt: ${name}`);
+    return rpcResult(id, rendered);
+  }
+  if (method === 'resources/list') {
+    return rpcResult(id, { resources: await listBriefResources(ctx) });
+  }
+  if (method === 'resources/read') {
+    const uri = params.uri as string;
+    try {
+      return rpcResult(id, { contents: await readBriefResource(ctx, uri) });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      return rpcError(id, -32602, message);
+    }
   }
   if (method === 'tools/call') {
     const name = params.name as string;
@@ -316,6 +377,45 @@ async function readBrief(ctx: Ctx): Promise<string> {
       : 'No brief captured yet. Ask the family about pace, interests, must-dos, ' +
         'and who is travelling, then record it with set_trip_brief.',
   });
+}
+
+// The brief exposed as an MCP resource (read-only context the assistant can pull
+// without a tool call). A connector token is bound to one trip, so there is
+// exactly one brief resource: that trip's. It reuses readBrief, so the same
+// privacy minimisation applies (no dietary/medical leaves the platform).
+const BRIEF_URI = (tid: string) => `yaycay://trip/${tid}/brief`;
+const BRIEF_TID = (uri: string): string | null => {
+  const m = uri.match(/^yaycay:\/\/trip\/([^/]+)\/brief$/);
+  return m ? m[1] : null;
+};
+
+async function listBriefResources(
+  ctx: Ctx,
+): Promise<Array<{ uri: string; name: string; description: string; mimeType: string }>> {
+  const { data: trip } = await serviceClient()
+    .from('trips')
+    .select('destination')
+    .eq('id', ctx.tid)
+    .maybeSingle();
+  return [
+    {
+      uri: BRIEF_URI(ctx.tid),
+      name: `Brief: ${trip?.destination ?? 'trip'}`,
+      description: "The family's intent for this trip (travellers, pace, must-dos).",
+      mimeType: 'application/json',
+    },
+  ];
+}
+
+async function readBriefResource(
+  ctx: Ctx,
+  uri: string,
+): Promise<Array<{ uri: string; mimeType: string; text: string }>> {
+  const tid = BRIEF_TID(uri ?? '');
+  // A connector token may only read its own trip's brief.
+  if (!tid || tid !== ctx.tid) throw new Error('Resource not available for this token.');
+  const text = await readBrief(ctx);
+  return [{ uri, mimeType: 'application/json', text }];
 }
 
 async function writeBrief(ctx: Ctx, a: Record<string, unknown>): Promise<string> {
