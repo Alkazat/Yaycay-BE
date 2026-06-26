@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Yaycay API
-  version: 0.32.0
+  version: 0.33.0
   description: >
     Yaycay back-end HTTP API. The v0.1 surface (Phase 0) is the free-demo
     generator, signup/lead capture, the 2FA verify step, and trip + trip-content
@@ -1425,6 +1425,43 @@ paths:
                 $ref: '#/components/schemas/CustomerSummaryPage'
         '403':
           $ref: '#/components/responses/Forbidden'
+
+  /admin/customers/invite:
+    post:
+      operationId: inviteCustomer
+      tags: [admin]
+      summary: Invite / onboard a customer (provision a pending account + email a magic link).
+      description: >
+        Provisions a pending account in the isolated identity store and emails a
+        magic-link invite; the person finishes setup (mandatory 2FA) on first
+        sign-in. Admins cannot set credentials, so onboarding is always an invite.
+        Idempotent on email: re-inviting an account that already exists resends
+        the link and returns the existing summary (200) rather than a 409.
+      security:
+        - adminAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InviteCustomerInput'
+      responses:
+        '201':
+          description: A pending account was provisioned and the invite emailed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomerSummary'
+        '200':
+          description: The email already had an account; the invite link was resent.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomerSummary'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
 
   /admin/customers/{id}/deletion-request:
     parameters:
@@ -4146,6 +4183,14 @@ components:
           type: [string, 'null']
           format: date-time
         deletionRequested: { type: boolean }
+
+    InviteCustomerInput:
+      type: object
+      additionalProperties: false
+      required: [email]
+      properties:
+        email: { type: string, format: email }
+        name: { type: string }
 
     ProductKind:
       type: string
