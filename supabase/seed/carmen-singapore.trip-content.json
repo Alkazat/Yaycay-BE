@@ -1,0 +1,847 @@
+{
+  "trip": {
+    "id": "08bf4275-1a45-4862-96df-ee5e0e83393b",
+    "destination": "Singapore",
+    "start_date": "2026-06-26",
+    "end_date": "2026-07-08",
+    "timezone": "Asia/Singapore",
+    "currency": "SGD"
+  },
+  "grownups": {
+    "essentials": "Currency: 1 SGD ≈ A$1.09 — bring S$150–200 cash for hawkers. Singapore plug: UK Type G 3-pin 230V — bring adapters. eSIM or Singtel tourist SIM. Grab app for rideshare. SimplyGo card for MRT (buy at Changi on arrival). Emergency: Police 999 / Ambulance 995.",
+    "checklist": [
+      "All 5 passports — valid 6 months beyond 7 July",
+      "EpiPen (×2) for Lenny — in adult bag, accessible at ALL times",
+      "Travel insurance documents — print copy",
+      "Flight confirmations: QF883/QF71 out, QF82/QF733 home",
+      "Hotel confirmations: Village Hotel Sentosa / Mandai Ref 47596SG020518 / Treetops Bukit Timah",
+      "Download Grab + offline Google Maps before leaving",
+      "Travel credit card (no foreign transaction fees)",
+      "Notify bank of travel 26 Jun – 8 Jul",
+      "Antihistamine + kids Panadol in carry-on"
+    ],
+    "transport": "Grab for door-to-door. MRT (SimplyGo): fast and cheap across the city. Sentosa Express + island buses free on island. Day 11: cable car scenic entry into Sentosa — one way in, MRT home."
+  },
+  "days": [
+    {
+      "id": "d1",
+      "date": "2026-06-26",
+      "label": "Day 1",
+      "summary": "Adelaide → Perth → Singapore",
+      "did_you_know": "We fly Adelaide → Perth at 6:05am, then Perth → Singapore, arriving at 5:50pm. A long day in the air but so worth it — Singapore is waiting! 🌏",
+      "weather": { "summary": "Tropical and humid — 32°C, way warmer than Adelaide!", "high": 32, "low": 26, "icon": "partly-sunny" },
+      "hotel": { "name": "Village Hotel Sentosa", "phase": "arrive", "note": "4 nights on Sentosa Island! 🏝️" },
+      "game": {
+        "type": "tap_collect",
+        "title": "⭐ Cloud Catcher!",
+        "stars": 1,
+        "config": { "items": ["☁️","⭐","🌟","✈️"], "goal": 10, "bg": "linear-gradient(160deg,#87CEEB,#4A90C4)", "msg": "You found all the stars! ⭐✨" }
+      },
+      "star_challenge": { "title": "Flight Challenge", "prompt": "Name the 3 countries you fly over on the way from Perth to Singapore!", "stars": 1 },
+      "moments": [
+        {
+          "id": "d1-m1",
+          "slot": "morning",
+          "title": "The Big Flights!",
+          "time_hint": "06:05",
+          "location": { "name": "Adelaide → Perth → Changi Airport", "lat": 1.3592, "lng": 103.9894, "zoom": 5 },
+          "activities": [
+            {
+              "id": "d1-m1-a1",
+              "kind": "shared",
+              "title": "Adelaide → Perth → Singapore",
+              "body": "We leave Adelaide really early — 6:05am! We stop in Perth first, then onto the big flight to Singapore. Singapore is in Southeast Asia, near the equator — that's why it's so warm! Tiny country, enormous adventures.",
+              "facts": ["Singapore is so small you can drive across the whole island in about 30 minutes. But it has over 5 million people living there! 🌏"],
+              "challenge": { "type": "quiz", "prompt": "How many time zones away is Singapore from Adelaide?", "answer": "1.5 hours ahead! Singapore stays in the same time zone all year — when it's 12pm in Adelaide it's 1:30pm in Singapore!", "stars": 1 },
+              "variants": {
+                "explorer_plus": {
+                  "fact": "Singapore sits about 137 km north of the Equator, so day and night are almost exactly 12 hours long all year round — no long summer evenings like back home!",
+                  "quiz": { "q": "Singapore has very little natural fresh water. How does it supply enough for 5+ million people?", "a": "It recycles used water into ultra-clean 'NEWater', collects rain across 17 reservoirs, desalinates seawater, and imports some from Malaysia." }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "d1-m2",
+          "slot": "evening",
+          "title": "Shake Shack Siloso Beach",
+          "time_hint": "19:00",
+          "location": { "name": "Shake Shack, Siloso Beach, Sentosa", "lat": 1.2501, "lng": 103.8109, "zoom": 17 },
+          "meal": {
+            "place": "Shake Shack, Siloso Beach",
+            "cuisine": "American burgers & shakes",
+            "safe_dishes": ["ShackBurger", "Cheeseburger", "Hot Dog", "Crinkle Cut Fries", "Vanilla Milkshake", "Chocolate Milkshake"],
+            "avoid_dishes": ["Any seasonal specials with nut-containing sauces — check menu"],
+            "allergy_protocol": "Shake Shack burgers and plain fries are nut-free. Confirm with staff that no nut sauces apply to Lenny's order on arrival. Milkshakes are generally safe — avoid any with nut toppings.",
+            "safety": { "note": "Lenny: confirm no nut-containing sauces on arrival.", "flags": ["nut-alert"] }
+          },
+          "activities": [
+            {
+              "id": "d1-m2-a1",
+              "kind": "shared",
+              "title": "First dinner in Singapore!",
+              "body": "First dinner in Singapore and it's Shake Shack — right on Siloso Beach! After a very long day of flying, burgers and shakes steps from a tropical island beach. Perfect. 🌴",
+              "facts": ["Shake Shack started as a hot dog cart in New York City in 2001. Now it's in over 40 countries — this one on a tropical island beach might be the best one. 🌏"],
+              "challenge": { "type": "spot", "prompt": "While you eat, count how many different languages you can hear around you. Singapore has 4 official languages — how many can you spot?", "answer": "Singapore's 4 official languages are English, Mandarin, Malay, and Tamil. You'll likely hear all of them!", "stars": 1 }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "d2",
+      "date": "2026-06-27",
+      "label": "Day 2",
+      "summary": "Nestopia + Beach + Luge!",
+      "did_you_know": "Sentosa Island was once called Pulau Blakang Mati — Malay for 'Island Behind Death'. They renamed it Sentosa ('Peace and Tranquillity') in 1972. Quite the upgrade! 🏝️",
+      "weather": { "summary": "Hot and sunny — 32°C. Lather on the SPF early!", "high": 32, "low": 26, "icon": "sunny" },
+      "hotel": { "name": "Village Hotel Sentosa", "phase": "stay" },
+      "game": {
+        "type": "colouring",
+        "title": "🎨 Colour the Beach!",
+        "stars": 1,
+        "config": { "cells": ["☀️","🌊","🏖️","🌴","🐚","🦀","⛵","☁️"], "palette": ["#FFD700","#FF6B6B","#4ECDC4","#87CEEB","#52C374","#FF9F43","#FD79A8","#A29BFE"], "bg": "linear-gradient(160deg,#87CEEB,#5BA3C9)", "msg": "Beautiful artwork! 🎨✨" }
+      },
+      "star_challenge": { "title": "Sentosa Explorer", "prompt": "How many different types of transport can you use ON Sentosa Island today?", "stars": 1 },
+      "moments": [
+        {
+          "id": "d2-m1",
+          "slot": "morning",
+          "title": "Beach Morning!",
+          "time_hint": "09:00",
+          "location": { "name": "Siloso / Palawan / Tanjong Beach, Sentosa", "lat": 1.2501, "lng": 103.8109, "zoom": 16 },
+          "activities": [
+            {
+              "id": "d2-m1-a1",
+              "kind": "shared",
+              "title": "Beach swim and sand time",
+              "body": "Sentosa has three amazing beaches — Palawan, Siloso, and Tanjong. Crystal clear water and white sand. Perfect for swimming, building sandcastles, and digging holes.",
+              "facts": ["The sea around Singapore is part of the South China Sea! It stays about 29°C all year — like a giant warm bathtub. 🌊"],
+              "challenge": { "type": "photo", "prompt": "Take a family jump shot — everyone in the air at the same time! Mum or Dad counts 3-2-1 JUMP! 🦘 Who gets the best air?", "answer": "Show everyone back home your best jump shot! 📸", "stars": 1 }
+            }
+          ]
+        },
+        {
+          "id": "d2-m2",
+          "slot": "midday",
+          "title": "Nestopia!",
+          "time_hint": "12:30",
+          "location": { "name": "Nestopia Adventure Playground, Sentosa", "lat": 1.2507, "lng": 103.818, "zoom": 16 },
+          "activities": [
+            {
+              "id": "d2-m2-a1",
+              "kind": "kid",
+              "title": "The giant nest playground",
+              "body": "Nestopia is an incredible open-air adventure playground right by the sea! 17 different sections with climbing nets, rope bridges, mazes and obstacle courses — plus two of the LONGEST slides on all of Sentosa (7.5 metres up!).",
+              "facts": ["The playground is built like giant bird nests — can you spot all 3 huge nests as you climb through? 🕸️"],
+              "challenge": { "type": "challenge", "prompt": "Race to the TOP of Nestopia and back without stopping — time yourself! Can you beat your siblings? First one back to the bottom WINS! 🏁", "answer": "Don't forget to tag the giant nests at the top before you come back down!", "stars": 1 }
+            }
+          ]
+        },
+        {
+          "id": "d2-m3",
+          "slot": "afternoon",
+          "title": "Skyline Luge!",
+          "time_hint": "14:30",
+          "location": { "name": "Skyline Luge Sentosa", "lat": 1.2501, "lng": 103.8109, "zoom": 16 },
+          "activities": [
+            {
+              "id": "d2-m3-a1",
+              "kind": "shared",
+              "title": "Race down the Luge tracks!",
+              "body": "The Skyline Luge is SO MUCH FUN! First, a chairlift up to the top of the hill — then hop in your luge cart and race down special winding tracks. Push forward to speed up, pull back to brake. Multiple runs, each track different!",
+              "facts": ["The luge tracks at Sentosa wind through trees with cool twists and turns. Under 6s ride with a grown-up — Lenny gets a personal racing partner! 🏎️"],
+              "challenge": { "type": "challenge", "prompt": "Challenge Mum or Dad to a luge race! Winner picks where we eat dinner. Track your wins — who gets the most? 🏆", "answer": "Top tip: lean into the turns and push forward on the straights for maximum speed!", "stars": 1 },
+              "variants": {
+                "explorer_plus": {
+                  "fact": "The Skyline Luge was invented in New Zealand — it started in Rotorua in the 1980s before coming to Sentosa.",
+                  "quiz": { "q": "The Skyline Luge ride was invented in which country?", "a": "New Zealand — it started in Rotorua in the 1980s before coming to Sentosa." }
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "d3",
+      "date": "2026-06-28",
+      "label": "Day 3",
+      "summary": "Aquarium + Fort + Beach Dinner!",
+      "did_you_know": null,
+      "weather": { "summary": "Warm and partly cloudy — great for outdoor exploring!", "high": 31, "low": 26, "icon": "partly-cloudy" },
+      "hotel": { "name": "Village Hotel Sentosa", "phase": "stay" },
+      "game": {
+        "type": "spot_it",
+        "title": "🔍 Spot It! Ocean",
+        "stars": 1,
+        "config": { "targets": ["🦈","🐠","🐙","🦑"], "pool": ["🐟","🐡","🦀","🐚","🌊","🐬","🐋","🦞","🌿","🦐","🐢","🐳"], "bg": "linear-gradient(160deg,#005F7F,#0099BB)", "msg": "Amazing eyes! 🔍🎉" }
+      },
+      "star_challenge": { "title": "Ocean Spotter", "prompt": "Find ALL 5 before you leave the Oceanarium: 🦈 Shark  🐙 Octopus  🦑 Jellyfish  🐡 Pufferfish  🐢 Sea Turtle!", "stars": 1 },
+      "moments": [
+        {
+          "id": "d3-m1",
+          "slot": "morning",
+          "title": "Singapore Oceanarium",
+          "time_hint": "09:30",
+          "location": { "name": "Singapore Oceanarium, Resorts World Sentosa", "lat": 1.2547, "lng": 103.8199, "zoom": 16 },
+          "activities": [
+            {
+              "id": "d3-m1-a1",
+              "kind": "shared",
+              "title": "One of the biggest aquariums in the world!",
+              "body": "The Singapore Oceanarium has over 100,000 sea creatures from 1,000 different species! Walk through a real underwater tunnel while sharks and rays glide overhead.",
+              "facts": ["The aquarium holds about 45 million litres of water — enough to fill 18 Olympic swimming pools! 🏊"],
+              "challenge": { "type": "spot", "prompt": "Find ALL 5 before you leave: 🦈 Shark  🐙 Octopus  🦑 Jellyfish  🐡 Pufferfish  🐢 Sea Turtle. Shout when you spot one!", "answer": "The jellyfish glow room is near the end — don't miss it! And look UP in the tunnel for sharks swimming right over you!", "stars": 1 },
+              "variants": {
+                "explorer_plus": {
+                  "fact": "The underwater tunnel lets you stand still while sharks glide overhead — the moving feeling is just the fish, not you!",
+                  "quiz": { "q": "Britain's Prime Minister called the 1942 fall of Singapore the worst what in British military history?", "a": "Winston Churchill called it the 'worst disaster' (and largest surrender) in British military history." }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "d3-m2",
+          "slot": "afternoon",
+          "title": "Fort Siloso",
+          "time_hint": "14:00",
+          "location": { "name": "Fort Siloso, Sentosa (free admission)", "lat": 1.2524, "lng": 103.8083, "zoom": 16 },
+          "activities": [
+            {
+              "id": "d3-m2-a1",
+              "kind": "shared",
+              "title": "A real WWII fort — and it's free!",
+              "body": "Fort Siloso is a real military fort built in the 1880s to protect Singapore! It has tunnels, huge guns, and bunkers you can explore. And it's completely free to visit.",
+              "facts": ["The fort's giant guns could fire shells weighing nearly a TONNE — heavier than a car! 💥"],
+              "challenge": { "type": "quiz", "prompt": "What year did Japan capture Singapore during World War 2? Guess before you look at the signs inside!", "answer": "1942! Japan captured Singapore on 15 February 1942. It was called 'the Fall of Singapore'.", "stars": 1 }
+            }
+          ]
+        },
+        {
+          "id": "d3-m3",
+          "slot": "evening",
+          "title": "Tanjong Beach Club Dinner",
+          "time_hint": "18:00",
+          "location": { "name": "Tanjong Beach Club, Sentosa (Coastal Table)", "lat": 1.2437, "lng": 103.8262, "zoom": 17 },
+          "meal": {
+            "place": "Tanjong Beach Club",
+            "cuisine": "Contemporary beach / wood-fired",
+            "safe_dishes": ["Grilled fish", "Pizza (confirm toppings)", "Chips/fries", "Grilled chicken"],
+            "allergy_protocol": "Wood-fired casual beach menu. Inform staff of Lenny's nut anaphylaxis on arrival — ask them to flag it to the kitchen. Confirm each of Lenny's dishes contains no nut-based sauces or dressings.",
+            "safety": { "note": "Lenny: inform staff of nut anaphylaxis on arrival.", "flags": ["nut-alert"] }
+          },
+          "activities": [
+            {
+              "id": "d3-m3-a1",
+              "kind": "shared",
+              "title": "Sunset dinner on the sand",
+              "body": "Tanjong Beach Club is one of Singapore's most famous beach clubs! Dinner right on the sand watching the sun set over the ocean. Reservation confirmed: Coastal Table, 6pm.",
+              "facts": [],
+              "challenge": { "type": "photo", "prompt": "Capture the perfect sunset silhouette — everyone facing away from the setting sun. Who takes the most magical shot? 🌅", "answer": "Face AWAY from the sunset so your faces are in shadow — that's how you get a perfect silhouette photo!", "stars": 1 }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "d4",
+      "date": "2026-06-29",
+      "label": "Day 4",
+      "summary": "Adventure Cove Waterpark!",
+      "did_you_know": "We picked Monday for Adventure Cove because it's the least busy day — shorter queues = MORE RIDES! 🎉",
+      "weather": { "summary": "32°C and sunny — perfect waterpark weather! Reapply SPF every 2 hours.", "high": 32, "low": 26, "icon": "sunny" },
+      "hotel": { "name": "Village Hotel Sentosa", "phase": "stay" },
+      "game": {
+        "type": "tap_collect",
+        "title": "🌊 Splash Time!",
+        "stars": 1,
+        "config": { "items": ["💦","🦆","🌊","💦"], "goal": 10, "bg": "linear-gradient(160deg,#29B6F6,#0277BD)", "msg": "Splash champion! 🌊🏆" }
+      },
+      "star_challenge": { "title": "Rainbow Spotter", "prompt": "In the snorkel lagoon, find a fish for every colour of the rainbow: 🔴🟠🟡🟢🔵🟣 — tick them off!", "stars": 1 },
+      "moments": [
+        {
+          "id": "d4-m1",
+          "slot": "anytime",
+          "title": "Adventure Cove Waterpark",
+          "time_hint": "10:00",
+          "location": { "name": "Adventure Cove Waterpark, Resorts World Sentosa", "lat": 1.2569, "lng": 103.8207, "zoom": 16 },
+          "activities": [
+            {
+              "id": "d4-m1-a1",
+              "kind": "shared",
+              "title": "Waterpark + snorkel with tropical fish!",
+              "body": "Adventure Cove is an EPIC waterpark with a twist — you can snorkel alongside real tropical fish and sharks at Rainbow Reef! Plus Asia's first hydromagnetic coaster, a wave pool, duelling slides, and a lazy river.",
+              "facts": ["Riptide Rocket uses magnets to push the raft UPHILL — a waterslide that goes UP! 🚀"],
+              "challenge": { "type": "spot", "prompt": "In the snorkel lagoon, find a fish for every colour of the rainbow: 🔴🟠🟡🟢🔵🟣 Tick them off as you go!", "answer": "Clownfish (like Nemo!) are bright orange. Surgeonfish are vivid blue. Check near the coral for purple ones!", "stars": 1 },
+              "variants": {
+                "explorer_plus": {
+                  "fact": "A hydromagnetic coaster uses magnets to push the raft uphill — a water slide can suddenly go UP, not just down.",
+                  "quiz": { "q": "Why does the sea at Adventure Cove feel warmer than an Adelaide beach?", "a": "Singapore is tropical and near the Equator, so the sea stays about 28–30°C all year round." }
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "d5",
+      "date": "2026-06-30",
+      "label": "Day 5",
+      "summary": "River Wonders + Night Safari!",
+      "did_you_know": null,
+      "weather": { "summary": "Warm and overcast — great for the animals at Night Safari!", "high": 31, "low": 25, "icon": "partly-cloudy" },
+      "hotel": { "name": "Mandai Rainforest Resort", "phase": "arrive", "note": "We sleep in the ACTUAL rainforest tonight! 🦜" },
+      "game": {
+        "type": "colouring",
+        "title": "🎨 Colour the Safari!",
+        "stars": 1,
+        "config": { "cells": ["🌙","⭐","🦁","🐘","🦒","🦜","🌿","🔦"], "palette": ["#1A237E","#FFD700","#FF8C00","#9E9E9E","#795548","#52C374","#7B1FA2","#FFA000"], "bg": "linear-gradient(160deg,#1A1A2E,#0D3B6E)", "msg": "Wild colours! 🦁✨" }
+      },
+      "star_challenge": { "title": "Night Vision Challenge", "prompt": "Spot 5 nocturnal animals without using your phone torch — let your eyes adjust to the dark!", "stars": 1 },
+      "moments": [
+        {
+          "id": "d5-m1",
+          "slot": "afternoon",
+          "title": "River Wonders",
+          "time_hint": "12:00",
+          "location": { "name": "River Wonders, Mandai Wildlife Reserve", "lat": 1.4043, "lng": 103.793, "zoom": 15 },
+          "activities": [
+            {
+              "id": "d5-m1-a1",
+              "kind": "shared",
+              "title": "Asia's first river-themed wildlife park",
+              "body": "River Wonders explores 8 different river habitats from around the world — Amazon to the Yangtze! You can also see GIANT PANDAS here — rare black and white bears from China.",
+              "facts": ["Giant pandas eat mostly bamboo — and they eat for up to 14 hours a day! They need so much because bamboo isn't very nutritious. 🐼"],
+              "challenge": { "type": "quiz", "prompt": "Giant Pandas eat mostly one thing. What is it, and how many hours a day do they eat it?", "answer": "BAMBOO! Up to 14 hours a day — they need so much because bamboo isn't very nutritious.", "stars": 1 },
+              "variants": {
+                "explorer_plus": {
+                  "fact": "The Night Safari opened in 1994 and was the world's first zoo built just for night-time animals.",
+                  "quiz": { "q": "Giant pandas are loaned between countries as a kind of friendship gift. What is this nicknamed?", "a": "'Panda diplomacy' — China lends pandas to build friendships with other countries." }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "d5-m2",
+          "slot": "evening",
+          "title": "Night Safari!",
+          "time_hint": "19:15",
+          "location": { "name": "Night Safari, Mandai Wildlife Reserve", "lat": 1.4043, "lng": 103.793, "zoom": 15 },
+          "activities": [
+            {
+              "id": "d5-m2-a1",
+              "kind": "shared",
+              "title": "The world's first nocturnal zoo",
+              "body": "THIS IS THE WORLD'S FIRST NOCTURNAL ZOO — it only opens at NIGHT so you see animals that only come out in the dark. Walk-through trails and a tram ride through live animal habitats.",
+              "facts": ["Nocturnal animals have special eyes that work brilliantly in the dark. A leopard can see 7 times better than a human at night! 👁️"],
+              "challenge": { "type": "challenge", "prompt": "Without using your phone light, try to spot 5 animals using ONLY your night vision eyes. The longer you stay in the dark, the better your eyes get — trust them!", "answer": "It takes about 20 minutes for your eyes to fully adjust to the dark. The animals can see YOU much better than you can see them!", "stars": 1 }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "d6",
+      "date": "2026-07-01",
+      "label": "Day 6",
+      "summary": "Orangutan Breakfast + Wild Adventure!",
+      "did_you_know": "Today might be the most magical morning of the WHOLE TRIP. Get ready! 🦧",
+      "weather": { "summary": "Warm and humid in the rainforest — 30°C. Insect repellent essential!", "high": 30, "low": 25, "icon": "partly-cloudy" },
+      "hotel": { "name": "Treetops Singapore, Bukit Timah", "phase": "arrive", "note": "Self-catering — stock up at Cold Storage / FairPrice on arrival. 6 nights here!" },
+      "game": {
+        "type": "spot_it",
+        "title": "🔍 Spot It! Jungle",
+        "stars": 1,
+        "config": { "targets": ["🦧","🦁","🐍","🦜"], "pool": ["🌿","🌴","🍌","🐘","🦒","🦎","🌺","🍃","🐛","🌱","🍀","🌸"], "bg": "linear-gradient(160deg,#2D5A27,#4A8040)", "msg": "Super spotter! 🦧🎉" }
+      },
+      "star_challenge": { "title": "Rainforest Explorer", "prompt": "Find these 4 things in the rainforest today: 🦎 Lizard  🦋 Butterfly  🌸 Flower on a tree  🍄 Mushroom or fungus!", "stars": 1 },
+      "moments": [
+        {
+          "id": "d6-m1",
+          "slot": "morning",
+          "title": "Breakfast WITH Orangutans!",
+          "time_hint": "09:00",
+          "location": { "name": "Jungle Breakfast, Singapore Zoo, Mandai", "lat": 1.4043, "lng": 103.793, "zoom": 15 },
+          "activities": [
+            {
+              "id": "d6-m1-a1",
+              "kind": "shared",
+              "title": "Eating breakfast while orangutans swing nearby",
+              "body": "We eat breakfast while orangutans swing around in the open-air habitat right next to us — no glass, no fences, just fruit and coffee and wild apes! This is a genuine once-in-a-lifetime moment.",
+              "facts": ["The word 'orangutan' comes from Malay: 'orang' (person) + 'utan' (forest) = PERSON OF THE FOREST! 🌿"],
+              "challenge": { "type": "photo", "prompt": "Get a photo that looks like an orangutan is sitting RIGHT behind you — like it's photobombing your breakfast! 🦧📸", "answer": "This will be the most amazing photo of the whole trip. Frame it when you get home!", "stars": 1 },
+              "variants": {
+                "explorer_plus": {
+                  "fact": "Orangutans share around 97% of their DNA with humans — they're one of our closest animal relatives.",
+                  "quiz": { "q": "Orangutans live wild on only two islands on Earth. Can you name them?", "a": "Borneo and Sumatra, in South-East Asia." }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "d6-m2",
+          "slot": "afternoon",
+          "title": "Rainforest Wild Adventure",
+          "time_hint": "15:00",
+          "location": { "name": "Rainforest Wild ASIA, Mandai Wildlife Reserve", "lat": 1.4043, "lng": 103.793, "zoom": 15 },
+          "activities": [
+            {
+              "id": "d6-m2-a1",
+              "kind": "kid",
+              "title": "Asia's first adventure-based wildlife park",
+              "body": "Brand new park — we're some of the first people to explore it! Climb a giant karst rock (Wild Apex), crawl through a real cave (Wild Cavern), jump 20 metres (Wild Drop), and walk high above the forest floor (Treetop Walk).",
+              "facts": ["Wild Drop is 20 metres high — about as tall as a 6-storey building. You jump off it! 🪂"],
+              "challenge": { "type": "spot", "prompt": "Find these 4 in the rainforest: 🦎 A lizard on a rock  🦋 A butterfly  🌸 A flower growing on a tree  🍄 A mushroom or fungus!", "answer": "Look LOW for lizards (they like warm rocks), HIGH for butterflies, and check tree trunks for flowers and fungi!", "stars": 1 }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "d7",
+      "date": "2026-07-02",
+      "label": "Day 7",
+      "summary": "Botanic Gardens + Ice Cream Museum!",
+      "did_you_know": "After two big wildlife days at Mandai, today is a gentler explore day in our new Bukit Timah neighbourhood — the Botanic Gardens are practically next door!",
+      "weather": { "summary": "Warm and partly sunny — 31°C. Good walking weather!", "high": 31, "low": 25, "icon": "partly-sunny" },
+      "hotel": { "name": "Treetops Singapore, Bukit Timah", "phase": "stay" },
+      "game": {
+        "type": "tap_collect",
+        "title": "🍦 Ice Cream Catcher!",
+        "stars": 1,
+        "config": { "items": ["🍦","🍨","🧁","🍭"], "goal": 10, "bg": "linear-gradient(160deg,#FF6B9D,#C44569)", "msg": "Yummy! You caught them all! 🍦😋" }
+      },
+      "star_challenge": { "title": "Orchid Hunter", "prompt": "Find and photograph Singapore's national flower — the Vanda Miss Joaquim orchid! It's purple and white. First one finds it wins a treat! 🌺", "stars": 1 },
+      "moments": [
+        {
+          "id": "d7-m1",
+          "slot": "morning",
+          "title": "Singapore Botanic Gardens",
+          "time_hint": "10:00",
+          "location": { "name": "Singapore Botanic Gardens (UNESCO World Heritage Site)", "lat": 1.3139, "lng": 103.8158, "zoom": 15 },
+          "activities": [
+            {
+              "id": "d7-m1-a1",
+              "kind": "shared",
+              "title": "A UNESCO garden that's been here 160 years",
+              "body": "The Singapore Botanic Gardens is a UNESCO World Heritage Site — one of the most important and special places on Earth! The National Orchid Garden has over 1,000 types of orchid.",
+              "facts": ["Singapore's national flower is the Vanda Miss Joaquim orchid — a beautiful purple and white flower first registered in Singapore in 1893! 🌸"],
+              "challenge": { "type": "challenge", "prompt": "Find and photograph Singapore's national flower — the Vanda Miss Joaquim orchid! It's purple and white. First one finds it wins a treat! 🌺", "answer": "Head to the National Orchid Garden — over 1,000 types of orchid including the Vanda Miss Joaquim. Look for the purple-and-white one!", "stars": 1 },
+              "variants": {
+                "explorer_plus": {
+                  "fact": "Experiments with rubber trees at these Gardens in the 1890s helped launch all of South-East Asia's rubber industry.",
+                  "quiz": { "q": "Why was the Vanda Miss Joaquim orchid chosen as Singapore's national flower?", "a": "It's tough, blooms year-round, and was the first orchid hybrid registered in Singapore, back in 1893." }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "d7-m2",
+          "slot": "afternoon",
+          "title": "Museum of Ice Cream",
+          "time_hint": "14:00",
+          "location": { "name": "Museum of Ice Cream, Dempsey Hill", "lat": 1.3054, "lng": 103.8106, "zoom": 16 },
+          "activities": [
+            {
+              "id": "d7-m2-a1",
+              "kind": "shared",
+              "title": "Interactive ice cream wonderland",
+              "body": "Not a boring museum! An interactive wonderland of ice cream and candy themes. The floors, walls and everything respond and play. There's even a POOL — but instead of water it's filled with millions of rainbow sprinkles! 🌈",
+              "facts": ["The sprinkle pool has actual millions of sprinkles in it. You can swim (carefully!) through them!"],
+              "challenge": { "type": "challenge", "prompt": "Try the MOST UNUSUAL flavour you find — the weirdest one available. No chickening out! Rate it 1–10 and describe the taste to everyone. 😜", "answer": "Being brave with food is a superpower — even if it's gross, you'll have a great story!", "stars": 1 }
+            }
+          ]
+        },
+        {
+          "id": "d7-m3",
+          "slot": "evening",
+          "title": "Newton Food Centre",
+          "time_hint": "18:30",
+          "location": { "name": "Newton Food Centre, Scotts Road", "lat": 1.312, "lng": 103.8382, "zoom": 16 },
+          "meal": {
+            "place": "Newton Food Centre",
+            "cuisine": "Singaporean hawker",
+            "safe_dishes": ["Chicken rice (no peanut sauce)", "Char kway teow (fried rice noodles)", "Oyster omelette (chai tow kway)", "Grilled stingray", "Nasi goreng (plain)"],
+            "avoid_dishes": ["Satay sauce / peanut sauce", "Gado-gado", "Mee siam (may contain peanuts)", "Any dish with nut-based sambal"],
+            "hawker_recs": ["Laksa — spicy coconut noodle soup, Singapore's favourite", "Oyster omelette (chai tow kway) — crispy egg with oysters", "BBQ stingray — sounds scary, tastes amazing!", "Chicken rice — safe for Lenny (no peanut sauce)", "Satay — Savy/Tay only (peanut sauce unsafe for Lenny)"],
+            "allergy_protocol": "CRITICAL: many hawker sauces contain peanuts. Before ordering for Lenny, ask each stall: 'Does this contain peanut or nut sauce?' Safe options: plain chicken rice (request no peanut sauce), char kway teow, plain grilled items. EpiPen in bag. When in doubt, order plain rice with grilled chicken from a confirmed-safe stall.",
+            "safety": { "note": "Lenny: HIGH peanut sauce risk at hawker centres. Ask every stall before ordering.", "flags": ["nut-alert", "peanut-sauce-risk", "hawker-vigilance"] }
+          },
+          "activities": [
+            {
+              "id": "d7-m3-a1",
+              "kind": "shared",
+              "title": "Singapore hawker food!",
+              "body": "A hawker centre is Singapore's version of a food court — outdoors, with lots of different stalls each cooking one special dish. They're AMAZING and super popular with locals.",
+              "facts": ["Newton Food Centre is one of Singapore's most famous hawker centres — it's been here since 1971! Locals and tourists both love it equally. 🍜"],
+              "challenge": { "type": "challenge", "prompt": "Savy and Tay must try ONE thing they've never eaten before — be brave! Rate your mystery food 1–10 after tasting. Mum or Dad checks everything for Lenny first. 🌶️", "answer": "Singapore hawker food is some of the best in the world. Even the weird-looking stuff is usually delicious!", "stars": 1 },
+              "safety": { "note": "Lenny: confirm no peanut sauce before ordering. High vigilance at hawker stalls.", "flags": ["nut-alert", "peanut-sauce-risk"] }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "d8",
+      "date": "2026-07-03",
+      "label": "Day 8",
+      "summary": "teamLab + Little India + Chinatown!",
+      "did_you_know": "Every Friday at teamLab, kids under 12 get in FREE with an adult ticket — that means Tay and Lenny don't pay! 🙌",
+      "weather": { "summary": "Warm and humid — 31°C. Perfect for indoor air-con art!", "high": 31, "low": 25, "icon": "partly-cloudy" },
+      "hotel": { "name": "Treetops Singapore, Bukit Timah", "phase": "stay" },
+      "game": {
+        "type": "colouring",
+        "title": "🎨 Colour the Art!",
+        "stars": 1,
+        "config": { "cells": ["🌈","⭐","💫","🎨","🔮","🎯","🎪","🎠"], "palette": ["#FF0000","#FF9900","#FFD700","#00CC44","#0066FF","#9900FF","#FF66CC","#00CCCC"], "bg": "linear-gradient(160deg,#7C4DFF,#4527A0)", "msg": "You made magic art! 🎨✨" }
+      },
+      "star_challenge": { "title": "Little India Explorer", "prompt": "Spot all 4 in Little India: 🌼 Marigold garland  🛕 Hindu temple  🌶️ Spice being ground  📜 Tamil script sign!", "stars": 1 },
+      "moments": [
+        {
+          "id": "d8-m1",
+          "slot": "morning",
+          "title": "teamLab Future World!",
+          "time_hint": "10:00",
+          "location": { "name": "teamLab Future World, ArtScience Museum, Marina Bay", "lat": 1.2863, "lng": 103.8593, "zoom": 16 },
+          "activities": [
+            {
+              "id": "d8-m1-a1",
+              "kind": "shared",
+              "title": "Digital art that reacts when you touch it",
+              "body": "teamLab is a mind-blowing art experience where EVERYTHING is interactive — floors, walls, ceilings come alive with glowing art that responds when you touch it. In the Sketch Aquarium, you colour a sea creature on paper, staff scans it, and YOUR drawing comes to life swimming on screen!",
+              "facts": ["In the Crystal Universe room, you can literally walk through millions of glowing lights. Touch the screen to change the entire universe around you! ✨"],
+              "challenge": { "type": "photo", "prompt": "In the Crystal Universe room, hold perfectly still for 3 seconds while someone takes your photo — the lights will blur into magic trails around you! ✨", "answer": "Put your phone on portrait mode and hold VERY still. The twinkling lights will look incredible around you!", "stars": 1 },
+              "variants": {
+                "explorer_plus": {
+                  "fact": "Singapore has four official languages — English, Malay, Mandarin and Tamil — and the national anthem is sung in Malay.",
+                  "quiz": { "q": "teamLab's artworks change as you move near them. How is that possible?", "a": "Sensors and computers generate the art live in real time — it's made by code, not pre-recorded video." }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "d8-m2",
+          "slot": "morning",
+          "title": "Little India!",
+          "time_hint": "11:30",
+          "location": { "name": "Little India, Serangoon Road", "lat": 1.3066, "lng": 103.8518, "zoom": 15 },
+          "activities": [
+            {
+              "id": "d8-m2-a1",
+              "kind": "shared",
+              "title": "Colourful streets, marigolds and spices",
+              "body": "Little India is one of the most vibrant neighbourhoods in Singapore! Streets decorated with marigold garlands, the smell of spices in the air, colourful temples around every corner.",
+              "facts": ["Singapore has 4 official languages: English, Mandarin, Malay, and Tamil. Most signs show all 4! Can you spot signs in all 4 languages? 👀"],
+              "challenge": { "type": "spot", "prompt": "Find all 4 in Little India: 🌼 A garland of marigold flowers  🛕 A Hindu temple  🌶️ A spice being ground or sold  📜 Tamil script (squiggly letters!)", "answer": "Tamil script looks like beautiful curvy squiggles — one of the world's oldest languages! The Sri Veeramakaliamman Temple on Serangoon Rd is stunning.", "stars": 1 }
+            }
+          ]
+        },
+        {
+          "id": "d8-m3",
+          "slot": "afternoon",
+          "title": "Chinatown!",
+          "time_hint": "14:00",
+          "location": { "name": "Chinatown, Pagoda Street / Smith Street", "lat": 1.2812, "lng": 103.8447, "zoom": 15 },
+          "activities": [
+            {
+              "id": "d8-m3-a1",
+              "kind": "shared",
+              "title": "Red lanterns, temples and souvenirs",
+              "body": "From Little India we jump on the MRT (same line!) to Chinatown — red lanterns, the Buddha Tooth Relic Temple, and amazing shops. About 75% of Singapore's people are Chinese.",
+              "facts": ["The Buddha Tooth Relic Temple houses a tooth believed to be 1,500 years old! 🏛️"],
+              "challenge": { "type": "quiz", "prompt": "How old is the tooth inside the Buddha Tooth Relic Temple? A) 500 years  B) 1,500 years  C) 2,500 years?", "answer": "B! It's 1,500 years old — believed to have belonged to the historical Buddha and brought to Singapore from Myanmar.", "stars": 1 }
+            }
+          ]
+        },
+        {
+          "id": "d8-m4",
+          "slot": "evening",
+          "title": "AiFOKATO — DIY Affogato!",
+          "time_hint": "17:30",
+          "location": { "name": "AiFOKATO, Telok Ayer (5 min walk from Chinatown)", "lat": 1.2793, "lng": 103.8476, "zoom": 16 },
+          "meal": {
+            "place": "AiFOKATO, Telok Ayer",
+            "cuisine": "DIY affogato — gelato + espresso",
+            "safe_dishes": ["Gelato affogato (check gelato flavours — most are nut-free)", "Matcha affogato", "Chocolate affogato"],
+            "avoid_dishes": ["Pistachio gelato", "Hazelnut gelato", "Any gelato with nut-based flavouring"],
+            "allergy_protocol": "AiFOKATO lets you pick your gelato flavour before the espresso pour. For Lenny, choose fruit-based, chocolate, or vanilla flavours. Confirm with staff that the gelato and espresso used contain no nuts.",
+            "safety": { "note": "Lenny: choose fruit/chocolate/vanilla gelato, confirm nut-free.", "flags": ["nut-alert"] }
+          },
+          "activities": [
+            {
+              "id": "d8-m4-a1",
+              "kind": "shared",
+              "title": "Singapore's first DIY affogato bar",
+              "body": "Pick your gelato flavour — then watch them pour a hot shot of espresso (or matcha or chocolate) right over the top. 'Affogato' means 'drowned' in Italian. Beautiful diamond-cut cups and wildly Instagrammable. $10/cup. 💎",
+              "facts": ["Affogato means 'drowned' in Italian — your gelato gets 'drowned' in hot espresso. AiFOKATO is Singapore's super-premium take on the Italian classic."]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "d9",
+      "date": "2026-07-04",
+      "label": "Day 9",
+      "summary": "Gardens by the Bay + TWO Light Shows!",
+      "did_you_know": null,
+      "weather": { "summary": "Warm and partly cloudy — 31°C. Cooling off nicely at night for the light shows!", "high": 31, "low": 25, "icon": "partly-cloudy" },
+      "hotel": { "name": "Treetops Singapore, Bukit Timah", "phase": "stay" },
+      "game": {
+        "type": "spot_it",
+        "title": "🔍 Spot It! Garden",
+        "stars": 1,
+        "config": { "targets": ["🦋","🐝","🌸","🍄"], "pool": ["🌻","🌷","🌿","🌱","🐛","🐞","🍃","🌼","🌳","🍀","🌾","🪷"], "bg": "linear-gradient(160deg,#1B5E20,#2E7D32)", "msg": "Great explorer! 🌳🎉" }
+      },
+      "star_challenge": { "title": "Supertree Photographer", "prompt": "Everyone takes their BEST photo at BOTH light shows tonight — Supertrees AND Spectra. Who took the most magical shot? 🌟", "stars": 1 },
+      "moments": [
+        {
+          "id": "d9-m1",
+          "slot": "morning",
+          "title": "Big Short Coffee, Joo Chiat",
+          "time_hint": "08:00",
+          "location": { "name": "Big Short Coffee, Joo Chiat", "lat": 1.3083, "lng": 103.9017, "zoom": 16 },
+          "activities": [
+            {
+              "id": "d9-m1-a1",
+              "kind": "adult",
+              "title": "Cocktail-inspired specialty coffee",
+              "body": "Tiny but legendary coffee stand famous for cocktail-inspired specialty drinks — espresso-blood orange blends, cold brews with wild seasonal combos. Walk 5 min to Koon Seng Road after for Singapore's most photographed heritage shophouses. Drinks ~$8–9 SGD, opens 8am.",
+              "facts": ["Joo Chiat is one of Singapore's most colourful neighbourhoods, packed with Peranakan heritage shophouses in vivid pinks, greens and blues. 📸"]
+            }
+          ]
+        },
+        {
+          "id": "d9-m2",
+          "slot": "afternoon",
+          "title": "Cloud Forest + Flower Dome",
+          "time_hint": "13:00",
+          "location": { "name": "Gardens by the Bay, Marina Bay", "lat": 1.2816, "lng": 103.8636, "zoom": 15 },
+          "activities": [
+            {
+              "id": "d9-m2-a1",
+              "kind": "shared",
+              "title": "35-metre indoor waterfall in a mountain of mist",
+              "body": "The Cloud Forest is like stepping into a magical mist-covered mountain! A MASSIVE 35-metre indoor waterfall — the tallest indoor waterfall in the world — and a spiral walkway up through tropical cloud-forest plants.",
+              "facts": ["The Cloud Forest keeps itself cool at 23–25°C — much cooler than outside. It simulates the cool mountain environment where these plants naturally grow. 🌡️"],
+              "challenge": { "type": "challenge", "prompt": "Walk to the very TOP of the Cloud Forest without taking the lift — count every step on the spiral walkway! How many steps to the top? First one up picks dessert! 🌿", "answer": "It's about 35 metres high — taller than a 10-storey building! The views at the top are worth every step.", "stars": 1 },
+              "variants": {
+                "explorer_plus": {
+                  "fact": "The Supertrees are giant vertical gardens; several collect rainwater and have solar panels that power the night show.",
+                  "quiz": { "q": "The Cloud Forest dome holds one of the world's tallest indoor waterfalls. Roughly how tall is it?", "a": "About 35 metres — taller than a 10-storey building." }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "d9-m3",
+          "slot": "evening",
+          "title": "DOUBLE Light Show Night!",
+          "time_hint": "19:45",
+          "location": { "name": "Gardens by the Bay + Marina Bay", "lat": 1.2816, "lng": 103.8636, "zoom": 14 },
+          "activities": [
+            {
+              "id": "d9-m3-a1",
+              "kind": "shared",
+              "title": "Supertrees at 7:45pm — free!",
+              "body": "18 giant Supertrees (25–50 metres tall) covered in plants light up, glow and pulse with music. Like standing in a glowing alien forest. Then walk 10 min to Marina Bay Sands for Spectra at 9pm — 15 min of water jets, lasers and light projected on a screen of mist.",
+              "facts": ["The Supertrees work like real trees — collecting rainwater, generating solar energy, and filtering air. Future technology made real! 🌱"],
+              "challenge": { "type": "photo", "prompt": "Best photo at EACH light show — Supertrees AND Spectra. Show the photos to each other: who took the most magical shot? 🌟", "answer": "Turn off your flash, hold very still, and try to include people in the foreground with lights behind. Magic! ✨", "stars": 1 }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "d10",
+      "date": "2026-07-05",
+      "label": "Day 10",
+      "summary": "Orchard Road + The Line Buffet!",
+      "did_you_know": null,
+      "weather": { "summary": "Warm — 32°C. Perfect for air-con malls and shopping!", "high": 32, "low": 25, "icon": "sunny" },
+      "hotel": { "name": "Treetops Singapore, Bukit Timah", "phase": "stay" },
+      "game": {
+        "type": "tap_collect",
+        "title": "🛍️ Shopping Spree!",
+        "stars": 1,
+        "config": { "items": ["🎀","⭐","🧸","🎊"], "goal": 10, "bg": "linear-gradient(160deg,#E91E8C,#AD1457)", "msg": "Bag is full! Great shopping! 🛍️🎉" }
+      },
+      "star_challenge": { "title": "Souvenir Hunter", "prompt": "Find the PERFECT souvenir for ONE person back home — budget $10 SGD. Think about what they'd love! 🛍️", "stars": 1 },
+      "moments": [
+        {
+          "id": "d10-m1",
+          "slot": "afternoon",
+          "title": "Orchard Road Shopping!",
+          "time_hint": "12:00",
+          "location": { "name": "Orchard Road — ION Orchard / Takashimaya", "lat": 1.304, "lng": 103.8318, "zoom": 15 },
+          "activities": [
+            {
+              "id": "d10-m1-a1",
+              "kind": "shared",
+              "title": "Singapore's famous shopping street",
+              "body": "Orchard Road is basically one giant mall after another for about 2 kilometres! Great for souvenirs, gifts for back home, and anything you forgot to pack.",
+              "facts": ["Orchard Road is named after the fruit orchards and nutmeg plantations that used to grow here in the 1800s. Now it's all shopping malls — quite a change! 🥭"],
+              "challenge": { "type": "challenge", "prompt": "Each kid: find the PERFECT souvenir for ONE person back home (friend, teacher, grandparent). Budget: $10 SGD. GO! 🛍️", "answer": "Think about what that person LIKES — not just what looks cool to you. A thoughtful gift is always better than an expensive one!", "stars": 1 },
+              "variants": {
+                "explorer_plus": {
+                  "fact": "Chilli crab was invented in Singapore in the 1950s and is now one of the country's most famous national dishes.",
+                  "quiz": { "q": "Orchard Road is named after what used to grow there in the 1800s?", "a": "Orchards, plus nutmeg and pepper plantations." }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "d10-m2",
+          "slot": "evening",
+          "title": "The Line Buffet — Eat the World!",
+          "time_hint": "19:00",
+          "location": { "name": "The Line, Shangri-La Hotel, Orchard Road", "lat": 1.304, "lng": 103.8318, "zoom": 15 },
+          "meal": {
+            "place": "The Line, Shangri-La Hotel",
+            "cuisine": "International buffet — 300+ dishes from 15+ countries",
+            "safe_dishes": ["Italian pasta station (made to order)", "French pastry station", "Sushi/sashimi station", "Grilled items (confirm no nut marinades)", "Fresh salad station"],
+            "avoid_dishes": ["Satay / peanut sauce stations", "Gado-gado", "Desserts with nut toppings (check the sundae bar)", "Any Indian curry with peanut-based sauce"],
+            "hawker_recs": ["Japanese sushi and sashimi bar", "Italian pasta made to order", "French pastry and bread section", "Chocolate fountain (confirm no nut cross-contamination)"],
+            "allergy_protocol": "Large buffet — HIGH cross-contamination risk. On arrival, speak to the head chef/manager: identify which stations are safe for Lenny. Asian hawker-style stations (satay, Indian curry) carry highest risk. French and Italian stations are generally safer. Use serving utensils only from safe stations — don't reach across nut-containing dishes. EpiPen in bag at the table.",
+            "safety": { "note": "Lenny: high cross-contamination risk. Pre-arrange with head chef on arrival. EpiPen at table.", "flags": ["nut-alert", "cross-contamination-risk", "pre-arrange-required"] }
+          },
+          "activities": [
+            {
+              "id": "d10-m2-a1",
+              "kind": "shared",
+              "title": "300 dishes, all you can eat!",
+              "body": "The Line at Shangri-La is Singapore's most famous buffet — over 300 dishes from all around the world, all you can eat. Japanese, Italian, Indian, Chinese, French, desserts — you name it.",
+              "facts": ["If you tried one dish from every country at the buffet, you'd eat food from over 15 nations in one sitting! 🏆"],
+              "challenge": { "type": "challenge", "prompt": "How many different COUNTRIES can you eat food from in one dinner? Sushi, pasta, curry, French pastry… count them! Most countries on your plate WINS! 🗺️", "answer": "Don't forget to save room for dessert — the chocolate fountain and ice cream station are legendary. Strategic buffet planning is key! 🍫", "stars": 1 }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "d11",
+      "date": "2026-07-06",
+      "label": "Day 11",
+      "summary": "Cable Car In + Universal Studios!",
+      "did_you_know": "The Battlestar Galactica roller coasters were closed for maintenance but REOPEN on exactly 6 July — our day! We planned this perfectly! 🎢",
+      "weather": { "summary": "Sunny and hot — 33°C. Bring hats for queues. Park has air-con throughout!", "high": 33, "low": 26, "icon": "sunny" },
+      "hotel": { "name": "Treetops Singapore, Bukit Timah", "phase": "stay" },
+      "game": {
+        "type": "colouring",
+        "title": "🎨 Colour the Park!",
+        "stars": 1,
+        "config": { "cells": ["🎢","🎡","🎠","🎪","⭐","🎉","🏰","🚀"], "palette": ["#FF4444","#FF9900","#FFD700","#44CC44","#4488FF","#AA44FF","#FF66AA","#44CCCC"], "bg": "linear-gradient(160deg,#E65100,#F57C00)", "msg": "What fun colours! 🎢✨" }
+      },
+      "star_challenge": { "title": "Character Collector", "prompt": "Get a photo with a character from EACH of the 7 zones at Universal Studios! Minions, Transformers, Puss in Boots, Shrek, a dino, a mummy, and a Nintendo character!", "stars": 1 },
+      "moments": [
+        {
+          "id": "d11-m1",
+          "slot": "morning",
+          "title": "Singapore Cable Car into Sentosa",
+          "time_hint": "09:00",
+          "location": { "name": "Mount Faber Cable Car Terminal", "lat": 1.2541, "lng": 103.8238, "zoom": 15 },
+          "activities": [
+            {
+              "id": "d11-m1-a1",
+              "kind": "shared",
+              "title": "Flying over the harbour to Universal's front door",
+              "body": "We ride the cable car ONE WAY into Sentosa — instead of a boring bus, we fly over the water with incredible views of Singapore's harbour, ships, and the city skyline all the way to Universal's entrance. So much better than the MRT! 🏙️",
+              "facts": ["The Singapore Cable Car has been running since 1974! It's one of the only cable cars in the world that passes through an office building AND over a busy highway. 🏢"],
+              "challenge": { "type": "spot", "prompt": "From the cable car, count: ⚓ Ships in the harbour  🏗️ Construction cranes  🌴 Palm trees on Sentosa  🏙️ How many skyscrapers?", "answer": "Singapore is one of the world's busiest ports — you might spot over 100 ships waiting! The port handles 1 in 5 of the world's shipping containers.", "stars": 1 },
+              "variants": {
+                "explorer_plus": {
+                  "fact": "Universal Studios Singapore is the smallest Universal park in the world, but it packs seven themed zones inside.",
+                  "quiz": { "q": "Battlestar Galactica is a 'duelling' coaster. What makes it special?", "a": "Two trains launch and race side-by-side on separate tracks, passing within metres of each other." }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "d11-m2",
+          "slot": "anytime",
+          "title": "Universal Studios Singapore!",
+          "time_hint": "10:00",
+          "location": { "name": "Universal Studios Singapore, Resorts World Sentosa", "lat": 1.2541, "lng": 103.8238, "zoom": 16 },
+          "activities": [
+            {
+              "id": "d11-m2-a1",
+              "kind": "shared",
+              "title": "7 themed zones, ALL coasters open today",
+              "body": "Universal Studios Singapore has 7 amazing zones: Battlestar Galactica (world's tallest duelling coasters! — two tracks racing side by side), Transformers 3D, Jurassic World river rapids, Revenge of the Mummy indoor coaster, Minion Land (brand new 2026 with 3 rides!), Super Nintendo World (brand new 2026!), and DreamWorks.",
+              "facts": ["Battlestar Galactica REOPENS TODAY — two trains launch and race side-by-side on separate tracks, passing within metres of each other. The world's tallest duelling coasters! 🎢"],
+              "challenge": { "type": "challenge", "prompt": "Collect a photo with a character from EACH of the 7 zones! Minions, Transformers, Puss in Boots, Shrek, a dino, a mummy, and a Nintendo character! 📸", "answer": "Characters rotate around the park — ask a staff member for the character meet-and-greet schedule at the entrance!", "stars": 1 }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "d12",
+      "date": "2026-07-07",
+      "label": "Day 12",
+      "summary": "Jewel Changi + Fly Home!",
+      "did_you_know": null,
+      "weather": { "summary": "Warm and tropical — 31°C. Last Singapore sunset!", "high": 31, "low": 25, "icon": "partly-sunny" },
+      "hotel": { "name": "Treetops Singapore, Bukit Timah", "phase": "depart", "checkout": "11:00", "note": "Flight departs 9PM — check out morning, store bags, head to Jewel!" },
+      "game": {
+        "type": "spot_it",
+        "title": "🔍 Spot It! Jewel",
+        "stars": 1,
+        "config": { "targets": ["✈️","💎","🌈","🎁"], "pool": ["🧳","🗺️","🌟","🎪","🎠","💫","🎶","🌺","🎨","🏅","🎯","🌠"], "bg": "linear-gradient(160deg,#1565C0,#283593)", "msg": "You found them all! 💎👑" }
+      },
+      "star_challenge": { "title": "Rain Vortex Timer", "prompt": "Stand at the edge of the Rain Vortex waterfall and count: how many seconds does it take one drop to fall from TOP to BOTTOM? 💧", "stars": 1 },
+      "moments": [
+        {
+          "id": "d12-m1",
+          "slot": "afternoon",
+          "title": "Jewel Changi Airport",
+          "time_hint": "13:00",
+          "location": { "name": "Jewel Changi Airport", "lat": 1.3592, "lng": 103.9894, "zoom": 15 },
+          "activities": [
+            {
+              "id": "d12-m1-a1",
+              "kind": "shared",
+              "title": "The world's best airport has an indoor waterfall",
+              "body": "Changi Airport is voted the WORLD'S BEST AIRPORT nearly every year — and Jewel is why! A giant glass dome with the Rain Vortex: the world's tallest indoor waterfall (40 metres — as tall as a 13-storey building!). Plus slides, a butterfly garden, and rooftop forest.",
+              "facts": ["The Rain Vortex uses rainwater collected from the glass roof — at night, coloured lights shine through the falling water. 💡"],
+              "challenge": { "type": "challenge", "prompt": "Stand at the very edge of the Rain Vortex and count: how many seconds does it take for one drop of water to fall from the TOP to the BOTTOM? 💧", "answer": "It's 40 metres tall — water takes about 2–3 seconds to fall. That's the same height as a 13-storey building!", "stars": 1 },
+              "variants": {
+                "explorer_plus": {
+                  "fact": "Jewel's Rain Vortex is the world's tallest indoor waterfall (about 40 m) and recycles collected rainwater.",
+                  "quiz": { "q": "Changi is often voted the world's best airport. Name one surprising thing inside it.", "a": "It has an indoor waterfall, a butterfly garden, slides, and rooftop gardens — inside the terminals!" }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "d12-m2",
+          "slot": "evening",
+          "title": "Flying Home!",
+          "time_hint": "21:00",
+          "location": { "name": "Changi Airport Terminal 2 — Gate B", "lat": 1.3592, "lng": 103.9894, "zoom": 14 },
+          "activities": [
+            {
+              "id": "d12-m2-a1",
+              "kind": "shared",
+              "title": "QF82 → Sydney → Adelaide",
+              "body": "Our flight QF82 leaves at 9PM and flies to Sydney overnight. Then QF733 from Sydney back to Adelaide, arriving 11:05am on 8 July. What a trip it's been! 🇸🇬",
+              "challenge": { "type": "quiz", "prompt": "Everyone answer: What was your #1 favourite moment of the WHOLE trip? And what food would you eat again RIGHT NOW if you could? 🌏", "answer": "These memories are yours forever. Singapore will always be part of your story! 🇸🇬❤️", "stars": 1 }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
