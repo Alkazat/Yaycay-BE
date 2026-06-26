@@ -127,10 +127,34 @@
           "description": "Soft 24h time hint HH:MM; not a hard booking."
         },
         "location": { "$ref": "#/$defs/location" },
+        "meal": { "$ref": "#/$defs/meal" },
         "activities": {
           "type": "array",
           "items": { "$ref": "#/$defs/activity" }
         }
+      }
+    },
+    "meal": {
+      "type": "object",
+      "description": "A meal at this moment: where, what's safe to eat, and what to avoid. Allergy-aware; protocol and flags surfaced to adults.",
+      "additionalProperties": false,
+      "properties": {
+        "place": { "type": "string", "maxLength": 200 },
+        "cuisine": { "type": "string", "maxLength": 120 },
+        "safe_dishes": {
+          "type": "array",
+          "items": { "type": "string", "maxLength": 200 }
+        },
+        "avoid_dishes": {
+          "type": "array",
+          "items": { "type": "string", "maxLength": 200 }
+        },
+        "hawker_recs": {
+          "type": "array",
+          "items": { "type": "string", "maxLength": 200 }
+        },
+        "allergy_protocol": { "type": "string", "maxLength": 2000 },
+        "safety": { "$ref": "#/$defs/safety" }
       }
     },
     "location": {
