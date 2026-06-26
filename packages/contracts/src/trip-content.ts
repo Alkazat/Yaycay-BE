@@ -120,6 +120,20 @@ export interface Activity {
   challenge?: Challenge;
 }
 
+/**
+ * A meal at this moment: where, what's safe to eat, and what to avoid.
+ * Allergy-aware; `allergy_protocol` and `safety` flags are surfaced to adults.
+ */
+export interface Meal {
+  place?: string;
+  cuisine?: string;
+  safe_dishes?: string[];
+  avoid_dishes?: string[];
+  hawker_recs?: string[];
+  allergy_protocol?: string;
+  safety?: Safety;
+}
+
 export interface Moment {
   id: string;
   slot: MomentSlot;
@@ -127,6 +141,7 @@ export interface Moment {
   /** Soft 24h time hint `HH:MM`; not a hard booking. */
   time_hint?: string;
   location?: Location;
+  meal?: Meal;
   activities: Activity[];
 }
 

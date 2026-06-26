@@ -6,6 +6,10 @@
 //   PATCH /trips/:id/content     replace trip_content (schema-validated) (v0.1)
 //   POST  /trips/:id/plan/chat   use-our-AI planning chat (SSE stream)  (v0.3, tier=ours)
 //   POST  /trips/:id/ingest      receipt/photo/note -> patched content  (v0.3, paid)
+//   GET   /trips/:id/challenges  per-child challenges (read)             (v0.34)
+//   GET   /trips/:id/budget      cash envelope + FX (read)               (v0.34)
+//   GET   /trips/:id/costs       line-item costs (read)                  (v0.34)
+//   GET   /trips/:id/rewards     star economy config (read)             (v0.34)
 //
 // Runs as the authenticated caller; Row-Level Security enforces ownership.
 // The AI surfaces additionally log an ai_jobs row and honour the daily cap.
@@ -353,6 +357,28 @@ Deno.serve(async (req) => {
         return await handleReservationUpdate(client, tripId, seg[2], req);
       }
       return error('method_not_allowed', 'Use PATCH.', 405);
+    }
+
+    // /trips/:id/challenges - per-child challenges (different quiz per child per
+    // day/activity). Read-only here; seeded server-side. ?profile=<id> filters.
+    if (seg.length === 2 && seg[1] === 'challenges') {
+      if (req.method === 'GET') return await handleChallengesList(client, tripId, req);
+      return error('method_not_allowed', 'Use GET.', 405);
+    }
+    // /trips/:id/budget - the trip's cash envelope + point-in-time FX (read).
+    if (seg.length === 2 && seg[1] === 'budget') {
+      if (req.method === 'GET') return await handleBudgetGet(client, tripId);
+      return error('method_not_allowed', 'Use GET.', 405);
+    }
+    // /trips/:id/costs - line-item costs in base + home currency (read).
+    if (seg.length === 2 && seg[1] === 'costs') {
+      if (req.method === 'GET') return await handleCostsList(client, tripId);
+      return error('method_not_allowed', 'Use GET.', 405);
+    }
+    // /trips/:id/rewards - the star economy config (default + per-child) (read).
+    if (seg.length === 2 && seg[1] === 'rewards') {
+      if (req.method === 'GET') return await handleRewardsGet(client, tripId);
+      return error('method_not_allowed', 'Use GET.', 405);
     }
 
     // /trips/:id/features - per-explorer feature toggles (sparse overrides on
@@ -969,6 +995,61 @@ async function handleReservationUpdate(
   if (dbErr) throw new Error(dbErr.message);
   if (!data) throw new NotFoundError();
   return json({ reservation: data });
+}
+
+// ----- Trip economics: per-child challenges, money, the star economy -------
+// Seeded server-side and read here so the FE can surface them. RLS scopes every
+// row to the owner; the trip_id filter is a belt-and-braces narrowing.
+const CHALLENGE_COLUMNS =
+  'id, trip_id, profile_id, day, node_ref, kind, prompt, answer, options, stars, created_at, updated_at';
+const BUDGET_COLUMNS =
+  'trip_id, base_currency, home_currency, exchange_rate, rate_as_of, cash_budget, daily_cash_budget, updated_at';
+const COST_COLUMNS =
+  'id, trip_id, reservation_id, day, node_ref, label, amount_base, amount_home, ' +
+  'currency_base, currency_home, paid, notes, created_at, updated_at';
+const REWARD_COLUMNS =
+  'id, trip_id, profile_id, star_value, currency, star_target, star_budget, updated_at';
+
+async function handleChallengesList(
+  client: UserClient,
+  tripId: string,
+  req: Request,
+): Promise<Response> {
+  const profile = new URL(req.url).searchParams.get('profile');
+  let q = client.from('trip_profile_challenges').select(CHALLENGE_COLUMNS).eq('trip_id', tripId);
+  if (profile) q = q.eq('profile_id', profile);
+  const { data, error: dbErr } = await q.order('day', { ascending: true });
+  if (dbErr) throw new Error(dbErr.message);
+  return json({ challenges: data ?? [] });
+}
+
+async function handleBudgetGet(client: UserClient, tripId: string): Promise<Response> {
+  const { data, error: dbErr } = await client
+    .from('trip_budget')
+    .select(BUDGET_COLUMNS)
+    .eq('trip_id', tripId)
+    .maybeSingle();
+  if (dbErr) throw new Error(dbErr.message);
+  return json({ budget: data ?? null });
+}
+
+async function handleCostsList(client: UserClient, tripId: string): Promise<Response> {
+  const { data, error: dbErr } = await client
+    .from('trip_costs')
+    .select(COST_COLUMNS)
+    .eq('trip_id', tripId)
+    .order('created_at', { ascending: true });
+  if (dbErr) throw new Error(dbErr.message);
+  return json({ costs: data ?? [] });
+}
+
+async function handleRewardsGet(client: UserClient, tripId: string): Promise<Response> {
+  const { data, error: dbErr } = await client
+    .from('trip_reward_config')
+    .select(REWARD_COLUMNS)
+    .eq('trip_id', tripId);
+  if (dbErr) throw new Error(dbErr.message);
+  return json({ rewards: data ?? [] });
 }
 
 async function handleJournalCreate(
