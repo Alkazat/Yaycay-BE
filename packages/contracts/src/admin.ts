@@ -183,12 +183,24 @@ export interface AdminTripSummary {
  */
 export type AdminUserStatus = 'active' | 'invited' | 'deletion-requested';
 
+/**
+ * The thin account summary returned by single-account writes (invite,
+ * deletion-request, email change). The Users *list* returns the richer
+ * `AdminUserRow`.
+ */
 export interface CustomerSummary {
   userId: string;
   email: string;
   tier: TripTier | null;
   retentionExpiresAt: string | null;
   deletionRequested: boolean;
+}
+
+/**
+ * A row of the admin Users table (GET /admin/customers): the thin summary plus
+ * the operational columns an administrator needs at a glance.
+ */
+export interface AdminUserRow extends CustomerSummary {
   /** Derived lifecycle for the Users table. */
   status: AdminUserStatus;
   /** Account creation time ("user since"); null if unknown. */

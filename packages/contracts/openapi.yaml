@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Yaycay API
-  version: 0.34.0
+  version: 0.35.0
   description: >
     Yaycay back-end HTTP API. The v0.1 surface (Phase 0) is the free-demo
     generator, signup/lead capture, the 2FA verify step, and trip + trip-content
@@ -1457,7 +1457,7 @@ paths:
     get:
       operationId: searchCustomers
       tags: [admin]
-      summary: Account lookup, entitlement, retention.
+      summary: The admin Users table - account, status, entitlement, footprint.
       security:
         - adminAuth: []
       parameters:
@@ -1466,11 +1466,11 @@ paths:
         - $ref: '#/components/parameters/Limit'
       responses:
         '200':
-          description: A page of customer summaries.
+          description: A page of enriched user rows.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/CustomerSummaryPage'
+                $ref: '#/components/schemas/AdminUserRowPage'
         '403':
           $ref: '#/components/responses/Forbidden'
 
@@ -4330,20 +4330,7 @@ components:
     CustomerSummary:
       type: object
       additionalProperties: false
-      required:
-        [
-          userId,
-          email,
-          tier,
-          retentionExpiresAt,
-          deletionRequested,
-          status,
-          createdAt,
-          lastLoginAt,
-          explorerCount,
-          grownupCount,
-          tripCount,
-        ]
+      required: [userId, email, tier, retentionExpiresAt, deletionRequested]
       properties:
         userId: { type: string }
         email: { type: string }
@@ -4355,16 +4342,32 @@ components:
           type: [string, 'null']
           format: date-time
         deletionRequested: { type: boolean }
-        status: { $ref: '#/components/schemas/AdminUserStatus' }
-        createdAt:
-          type: [string, 'null']
-          format: date-time
-        lastLoginAt:
-          type: [string, 'null']
-          format: date-time
-        explorerCount: { type: integer }
-        grownupCount: { type: integer }
-        tripCount: { type: integer }
+
+    AdminUserRow:
+      allOf:
+        - $ref: '#/components/schemas/CustomerSummary'
+        - type: object
+          additionalProperties: false
+          required:
+            [
+              status,
+              createdAt,
+              lastLoginAt,
+              explorerCount,
+              grownupCount,
+              tripCount,
+            ]
+          properties:
+            status: { $ref: '#/components/schemas/AdminUserStatus' }
+            createdAt:
+              type: [string, 'null']
+              format: date-time
+            lastLoginAt:
+              type: [string, 'null']
+              format: date-time
+            explorerCount: { type: integer }
+            grownupCount: { type: integer }
+            tripCount: { type: integer }
 
     InviteCustomerInput:
       type: object
@@ -4793,6 +4796,16 @@ components:
         items:
           type: array
           items: { $ref: '#/components/schemas/CustomerSummary' }
+        nextCursor: { type: [string, 'null'] }
+
+    AdminUserRowPage:
+      type: object
+      additionalProperties: false
+      required: [items, nextCursor]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/AdminUserRow' }
         nextCursor: { type: [string, 'null'] }
 
     ContentReviewPage:
