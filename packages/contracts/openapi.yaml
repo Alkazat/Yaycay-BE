@@ -2484,6 +2484,144 @@ paths:
         '422':
           $ref: '#/components/responses/ValidationError'
 
+  # ===== Trip economics (v0.34) =====
+
+  /trips/{tripId}/challenges:
+    parameters:
+      - $ref: '#/components/parameters/TripId'
+    get:
+      operationId: listTripChallenges
+      tags: [trips]
+      summary: Per-profile challenges for a trip.
+      description: >
+        Returns all profile-specific challenges for the trip from
+        `trip_profile_challenges`. Filter to one child with `?profile=<uuid>`.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: profile
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+          description: Filter to challenges for a single child profile.
+      responses:
+        '200':
+          description: The challenges.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [challenges]
+                properties:
+                  challenges:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/TripChallenge'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /trips/{tripId}/budget:
+    parameters:
+      - $ref: '#/components/parameters/TripId'
+    get:
+      operationId: getTripBudget
+      tags: [trips]
+      summary: The trip's cash budget and exchange rate.
+      description: >
+        Returns the single `trip_budget` row for the trip, or `null` when none
+        has been set. Includes the base/home currency pair, exchange rate, and
+        the total and per-day cash envelopes.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: The budget (null when not yet configured).
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [budget]
+                properties:
+                  budget:
+                    oneOf:
+                      - $ref: '#/components/schemas/TripBudget'
+                      - type: 'null'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /trips/{tripId}/costs:
+    parameters:
+      - $ref: '#/components/parameters/TripId'
+    get:
+      operationId: listTripCosts
+      tags: [trips]
+      summary: Line-item costs for a trip.
+      description: >
+        Returns all cost rows from `trip_costs` for the trip, ordered by
+        `created_at` ascending. Each row carries both base and home-currency
+        amounts so a later rate change never rewrites history.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: The cost line items.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [costs]
+                properties:
+                  costs:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/TripCost'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /trips/{tripId}/rewards:
+    parameters:
+      - $ref: '#/components/parameters/TripId'
+    get:
+      operationId: listTripRewards
+      tags: [trips]
+      summary: Star-economy reward config rows for a trip.
+      description: >
+        Returns all rows from `trip_reward_config`. A row with `profile_id: null`
+        is the trip-wide default; rows with a `profile_id` override it for that
+        child. Cash value of a star = `star_value` resolved to the child's row
+        else the default.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: The reward config rows.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [rewards]
+                properties:
+                  rewards:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/TripRewardConfig'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
   /trips/{tripId}/grownups/checklist:
     parameters:
       - $ref: '#/components/parameters/TripId'
@@ -3288,7 +3426,7 @@ components:
         summary:
           type: string
         did_you_know:
-          type: string
+          type: [string, 'null']
         weather:
           $ref: '#/components/schemas/Weather'
         hotel:
@@ -3494,6 +3632,144 @@ components:
             type: string
         transport:
           type: string
+
+    # ===== Trip economics schemas (v0.34) =====
+
+    TripChallenge:
+      type: object
+      additionalProperties: false
+      required: [id, trip_id, profile_id, day, node_ref, kind, prompt, options, stars, created_at, updated_at]
+      description: >
+        A profile-specific challenge from `trip_profile_challenges`. Tailors a
+        quiz/spot/photo/challenge to one child on one day or activity node.
+      properties:
+        id: { type: string, format: uuid }
+        trip_id: { type: string, format: uuid }
+        profile_id: { type: string, format: uuid }
+        day:
+          type: string
+          description: Content day id (e.g. "d2").
+        node_ref:
+          type: string
+          description: Activity id within the day, or empty string for a day-level challenge.
+        kind:
+          type: string
+          enum: [quiz, spot, photo, challenge]
+        prompt: { type: string }
+        answer:
+          type: [string, 'null']
+          description: Optional reveal answer.
+        options:
+          type: array
+          items: { type: string }
+          description: Multiple-choice options (may be empty).
+        stars: { type: integer, minimum: 1, maximum: 10 }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    TripBudget:
+      type: object
+      additionalProperties: false
+      required: [trip_id, base_currency, home_currency, updated_at]
+      description: >
+        The trip's cash envelope and exchange rate from `trip_budget`. Nullable
+        numeric fields are absent until the owner fills them in.
+      properties:
+        trip_id: { type: string, format: uuid }
+        base_currency:
+          type: string
+          pattern: '^[A-Z]{3}$'
+          description: ISO 4217 code for the destination currency (e.g. "SGD").
+        home_currency:
+          type: string
+          pattern: '^[A-Z]{3}$'
+          description: ISO 4217 code for the home currency (e.g. "AUD").
+        exchange_rate:
+          type: [number, 'null']
+          description: 1 base = exchange_rate home.
+        rate_as_of:
+          type: [string, 'null']
+          format: date
+          description: Date the exchange rate was captured.
+        cash_budget:
+          type: [number, 'null']
+          description: Total cash envelope in base currency.
+        daily_cash_budget:
+          type: [number, 'null']
+          description: Per-day cash budget in base currency.
+        updated_at: { type: string, format: date-time }
+
+    TripCost:
+      type: object
+      additionalProperties: false
+      required: [id, trip_id, day, node_ref, label, currency_base, currency_home, paid, created_at, updated_at]
+      description: >
+        A line-item cost from `trip_costs`. Both currency amounts are stored at
+        insert time so a later rate change never rewrites history.
+      properties:
+        id: { type: string, format: uuid }
+        trip_id: { type: string, format: uuid }
+        reservation_id:
+          type: [string, 'null']
+          format: uuid
+          description: Linked trip_reservations row, if any.
+        day:
+          type: string
+          description: Content day id (e.g. "d2"), or empty string for trip-level costs.
+        node_ref:
+          type: string
+          description: Activity id, or empty string when not node-specific.
+        label: { type: string }
+        amount_base:
+          type: [number, 'null']
+          description: Amount in the destination (base) currency.
+        amount_home:
+          type: [number, 'null']
+          description: Amount in the home currency at the time of entry.
+        currency_base:
+          type: string
+          pattern: '^[A-Z]{3}$'
+          description: ISO 4217 destination currency code (e.g. "SGD").
+        currency_home:
+          type: string
+          pattern: '^[A-Z]{3}$'
+          description: ISO 4217 home currency code (e.g. "AUD").
+        paid: { type: boolean }
+        notes:
+          type: [string, 'null']
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    TripRewardConfig:
+      type: object
+      additionalProperties: false
+      required: [id, trip_id, currency, updated_at]
+      description: >
+        One row from `trip_reward_config`. A row with `profile_id: null` is the
+        trip-wide default; rows with a `profile_id` override for that child.
+        Cash value of each star = `star_value` (child row else default).
+      properties:
+        id: { type: string, format: uuid }
+        trip_id: { type: string, format: uuid }
+        profile_id:
+          type: [string, 'null']
+          format: uuid
+          description: Null for the trip-wide default; a profile uuid for a child override.
+        star_value:
+          type: [number, 'null']
+          description: Cash value of one star in `currency`.
+        currency:
+          type: string
+          pattern: '^[A-Z]{3}$'
+          description: ISO 4217 currency code for star_value.
+        star_target:
+          type: [integer, 'null']
+          minimum: 0
+          description: Optional star count goal for this child (or trip default).
+        star_budget:
+          type: [number, 'null']
+          description: Optional total cash budget for the reward pool in `currency`.
+        updated_at: { type: string, format: date-time }
 
     # ===== Use-our-AI schemas (v0.3) =====
 
