@@ -326,11 +326,7 @@ export async function createTrip(req: Request, ctx: AdminContext): Promise<Respo
 }
 
 /** Delete a trip (DELETE /admin/trips/{id}); content/journal cascade. */
-export async function deleteTrip(
-  _req: Request,
-  ctx: AdminContext,
-  id: string,
-): Promise<Response> {
+export async function deleteTrip(_req: Request, ctx: AdminContext, id: string): Promise<Response> {
   const db = serviceClient();
   const { data: trip, error: selErr } = await db
     .from('trips')

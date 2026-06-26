@@ -343,7 +343,13 @@ export async function changeEmail(
     after: { email },
   });
 
-  return ok(await summarize(db, { user_id: userId, email, deletion_requested_at: acct.deletion_requested_at }));
+  return ok(
+    await summarize(db, {
+      user_id: userId,
+      email,
+      deletion_requested_at: acct.deletion_requested_at,
+    }),
+  );
 }
 
 /**
