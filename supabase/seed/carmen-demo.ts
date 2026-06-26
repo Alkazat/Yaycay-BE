@@ -345,11 +345,7 @@ async function main() {
   //     so we delete-then-insert for the default row (safe: idempotent on re-run).
   {
     const r = economics.reward;
-    await admin
-      .from('trip_reward_config')
-      .delete()
-      .eq('trip_id', TRIP_ID)
-      .is('profile_id', null);
+    await admin.from('trip_reward_config').delete().eq('trip_id', TRIP_ID).is('profile_id', null);
     const { error } = await admin.from('trip_reward_config').insert({
       trip_id: TRIP_ID,
       user_id: userId,

@@ -3638,7 +3638,20 @@ components:
     TripChallenge:
       type: object
       additionalProperties: false
-      required: [id, trip_id, profile_id, day, node_ref, kind, prompt, options, stars, created_at, updated_at]
+      required:
+        [
+          id,
+          trip_id,
+          profile_id,
+          day,
+          node_ref,
+          kind,
+          prompt,
+          options,
+          stars,
+          created_at,
+          updated_at,
+        ]
       description: >
         A profile-specific challenge from `trip_profile_challenges`. Tailors a
         quiz/spot/photo/challenge to one child on one day or activity node.
@@ -3702,7 +3715,19 @@ components:
     TripCost:
       type: object
       additionalProperties: false
-      required: [id, trip_id, day, node_ref, label, currency_base, currency_home, paid, created_at, updated_at]
+      required:
+        [
+          id,
+          trip_id,
+          day,
+          node_ref,
+          label,
+          currency_base,
+          currency_home,
+          paid,
+          created_at,
+          updated_at,
+        ]
       description: >
         A line-item cost from `trip_costs`. Both currency amounts are stored at
         insert time so a later rate change never rewrites history.
