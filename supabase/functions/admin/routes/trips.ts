@@ -256,3 +256,98 @@ export async function getTripProgress(
     })),
   });
 }
+
+const TRIP_TIERS = ['ours', 'byo'];
+const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * Create a trip for a customer with the tier entitlement granted directly
+ * (POST /admin/trips). Admin-only: skips Stripe. The owner must already exist
+ * (invite first). Returns the AdminTripSummary, 201.
+ */
+export async function createTrip(req: Request, ctx: AdminContext): Promise<Response> {
+  let body: Record<string, unknown>;
+  try {
+    body = (await req.json()) as Record<string, unknown>;
+  } catch {
+    throw badRequest('Request body must be JSON.');
+  }
+
+  const ownerEmail =
+    typeof body.ownerEmail === 'string' ? body.ownerEmail.trim().toLowerCase() : '';
+  const destination = typeof body.destination === 'string' ? body.destination.trim() : '';
+  const tier = String(body.tier ?? '');
+  const startDate = typeof body.startDate === 'string' ? body.startDate : '';
+  const endDate = typeof body.endDate === 'string' ? body.endDate : '';
+
+  const errs: string[] = [];
+  if (!EMAIL_RE.test(ownerEmail)) errs.push('ownerEmail must be a valid email');
+  if (!destination) errs.push('destination is required');
+  if (!TRIP_TIERS.includes(tier)) errs.push("tier must be 'ours' or 'byo'");
+  if (!ISO_DATE_RE.test(startDate)) errs.push('startDate must be an ISO date (YYYY-MM-DD)');
+  if (!ISO_DATE_RE.test(endDate)) errs.push('endDate must be an ISO date (YYYY-MM-DD)');
+  if (ISO_DATE_RE.test(startDate) && ISO_DATE_RE.test(endDate) && endDate < startDate) {
+    errs.push('endDate must be on or after startDate');
+  }
+  if (errs.length) throw unprocessable(errs.join('; '));
+
+  const db = serviceClient();
+  const { data: acct, error: acctErr } = await db
+    .schema('identity')
+    .from('accounts')
+    .select('user_id, email')
+    .ilike('email', ownerEmail)
+    .maybeSingle();
+  if (acctErr) throw badRequest(acctErr.message);
+  if (!acct) throw unprocessable(`No Yaycay account for ${ownerEmail} - invite them first.`);
+
+  const { data: trip, error: insErr } = await db
+    .from('trips')
+    .insert({
+      user_id: acct.user_id,
+      destination,
+      tier,
+      start_date: startDate,
+      end_date: endDate,
+      status: 'planning',
+    })
+    .select('*')
+    .single();
+  if (insErr) throw badRequest(insErr.message);
+
+  await writeAudit(ctx, {
+    action: 'trip.create',
+    targetType: 'trip',
+    targetId: trip.id as string,
+    after: { ownerEmail: acct.email, destination, tier, startDate, endDate },
+  });
+  return ok(toSummary(trip as TripRow, acct.email as string), 201);
+}
+
+/** Delete a trip (DELETE /admin/trips/{id}); content/journal cascade. */
+export async function deleteTrip(
+  _req: Request,
+  ctx: AdminContext,
+  id: string,
+): Promise<Response> {
+  const db = serviceClient();
+  const { data: trip, error: selErr } = await db
+    .from('trips')
+    .select('id, destination')
+    .eq('id', id)
+    .maybeSingle();
+  if (selErr) throw badRequest(selErr.message);
+  if (!trip) throw notFound('Trip not found.');
+
+  const { error: delErr } = await db.from('trips').delete().eq('id', id);
+  if (delErr) throw badRequest(delErr.message);
+
+  await writeAudit(ctx, {
+    action: 'trip.delete',
+    targetType: 'trip',
+    targetId: id,
+    before: { destination: trip.destination },
+  });
+  return ok({ deleted: true });
+}

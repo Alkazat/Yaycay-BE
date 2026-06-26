@@ -75,7 +75,9 @@ async function route(
 
     case 'trips':
       if (!a && method === 'GET') return trips.searchTrips(req, ctx);
+      if (!a && method === 'POST') return trips.createTrip(req, ctx);
       if (a && !b && method === 'GET') return trips.getTripSummary(req, ctx, a);
+      if (a && !b && method === 'DELETE') return trips.deleteTrip(req, ctx, a);
       if (a && b === 'content' && method === 'GET') return trips.getTripContent(req, ctx, a);
       if (a && b === 'profiles' && method === 'GET') return trips.getTripProfiles(req, ctx, a);
       if (a && b === 'progress' && method === 'GET') return trips.getTripProgress(req, ctx, a);
@@ -86,8 +88,15 @@ async function route(
     case 'customers':
       if (!a && method === 'GET') return customers.searchCustomers(req, ctx);
       if (a === 'invite' && !b && method === 'POST') return customers.inviteCustomer(req, ctx);
+      if (a && !b && method === 'DELETE') return customers.removeInvite(req, ctx, a);
+      if (a && b === 'email' && method === 'PATCH') return customers.changeEmail(req, ctx, a);
       if (a && b === 'deletion-request' && method === 'POST') {
         return customers.requestCustomerDeletion(req, ctx, a);
+      }
+      // Customer-scoped alias of the deletion-requests execute (same handler:
+      // typed-email confirm + 30-day grace unless force).
+      if (a && b === 'deletion-execute' && method === 'POST') {
+        return deletions.executeDeletion(req, ctx, a);
       }
       break;
 
