@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Yaycay API
-  version: 0.32.0
+  version: 0.33.0
   description: >
     Yaycay back-end HTTP API. The v0.1 surface (Phase 0) is the free-demo
     generator, signup/lead capture, the 2FA verify step, and trip + trip-content
@@ -1425,6 +1425,44 @@ paths:
                 $ref: '#/components/schemas/CustomerSummaryPage'
         '403':
           $ref: '#/components/responses/Forbidden'
+
+  /admin/customers/invite:
+    post:
+      operationId: inviteCustomer
+      tags: [admin]
+      summary: Manually onboard a customer by emailing a magic-link invite.
+      description: >
+        Provisions a pending account in the isolated identity store (no password;
+        the person completes setup with magic-link + 2FA on first sign-in) and
+        sends the invite email. Idempotent on email: re-inviting resends the link
+        and returns the existing account (200) rather than erroring.
+      security:
+        - adminAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InviteCustomerInput'
+      responses:
+        '201':
+          description: A fresh pending account was provisioned and invited.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomerSummary'
+        '200':
+          description: An account already existed for this email; the link was resent.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomerSummary'
+        '400':
+          $ref: '#/components/responses/ProblemBadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ProblemUnprocessable'
 
   /admin/customers/{id}/deletion-request:
     parameters:
@@ -4146,6 +4184,14 @@ components:
           type: [string, 'null']
           format: date-time
         deletionRequested: { type: boolean }
+
+    InviteCustomerInput:
+      type: object
+      additionalProperties: false
+      required: [email]
+      properties:
+        email: { type: string, format: email }
+        name: { type: string, description: Optional; used to greet them in the invite email. }
 
     ProductKind:
       type: string

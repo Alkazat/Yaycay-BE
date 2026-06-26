@@ -184,6 +184,18 @@ export interface CustomerSummary {
 }
 
 /**
+ * Request body for `POST /admin/customers/invite` (admin). Manually onboard a
+ * customer: provisions a pending account in the isolated identity store and
+ * emails a magic-link invite (no password is ever set by an admin). Idempotent
+ * on `email` - re-inviting resends the link and returns the existing account.
+ */
+export interface InviteCustomerInput {
+  email: string;
+  /** Optional; used to greet the person in the invite email. */
+  name?: string;
+}
+
+/**
  * What a catalogue product confers on purchase: a trip `tier` entitlement, or a
  * `keep`-token that extends a trip's data retention by `extendsMonths`.
  */
