@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Yaycay API
-  version: 0.33.0
+  version: 0.34.0
   description: >
     Yaycay back-end HTTP API. The v0.1 surface (Phase 0) is the free-demo
     generator, signup/lead capture, the 2FA verify step, and trip + trip-content
@@ -1201,6 +1201,33 @@ paths:
                 $ref: '#/components/schemas/TripSummaryPage'
         '403':
           $ref: '#/components/responses/Forbidden'
+    post:
+      operationId: createTrip
+      tags: [admin]
+      summary: Create a trip for a customer with the tier granted directly (no Stripe).
+      description: >
+        Admin-only path: assigns the trip and its tier entitlement directly,
+        skipping checkout. The owner is resolved from ownerEmail (the account
+        must already exist - invite first). The normal app still buys via Stripe.
+      security:
+        - adminAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTripInput'
+      responses:
+        '201':
+          description: The created trip.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminTripSummary'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
 
   /admin/trips/{id}:
     parameters:
@@ -1218,6 +1245,27 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AdminTripSummary'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/ProblemNotFound'
+    delete:
+      operationId: deleteTrip
+      tags: [admin]
+      summary: Delete a trip (and its content/journal/profiles via cascade).
+      security:
+        - adminAuth: []
+      responses:
+        '200':
+          description: The trip was deleted.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [deleted]
+                properties:
+                  deleted: { type: boolean }
         '403':
           $ref: '#/components/responses/Forbidden'
         '404':
@@ -1481,6 +1529,113 @@ paths:
                 $ref: '#/components/schemas/CustomerSummary'
         '403':
           $ref: '#/components/responses/Forbidden'
+
+  /admin/customers/{id}:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    delete:
+      operationId: removeCustomerInvite
+      tags: [admin]
+      summary: Remove a never-activated invite (no data to purge).
+      description: >
+        For accounts that were invited but never signed in and own no data.
+        Activated accounts must go through deletion-request + execute instead.
+      security:
+        - adminAuth: []
+      responses:
+        '200':
+          description: The invite was removed.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [removed]
+                properties:
+                  removed: { type: boolean }
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/ProblemNotFound'
+        '409':
+          description: The account has been activated or owns data; use the deletion flow.
+
+  /admin/customers/{id}/email:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    patch:
+      operationId: updateCustomerEmail
+      tags: [admin]
+      summary: Change a customer's sign-in email.
+      description: >
+        Updates the email in the isolated identity store and the auth user,
+        keeping magic-link + 2FA intact. Trips stay owned by user_id.
+      security:
+        - adminAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateCustomerEmailInput'
+      responses:
+        '200':
+          description: The updated customer.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomerSummary'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/ProblemNotFound'
+        '409':
+          description: That email is already in use by another account.
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /admin/customers/{id}/deletion-execute:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    post:
+      operationId: executeCustomerDeletion
+      tags: [admin]
+      summary: Execute a hard delete (alias of /admin/deletion-requests/{id}/execute).
+      description: >
+        Irreversible. Purges the user and their trips/profiles/data. Shares the
+        deletion-requests execute handler, so it requires the typed-email
+        confirmation and enforces the 30-day grace unless force:true.
+      security:
+        - adminAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [email]
+              properties:
+                email: { type: string, format: email }
+                force: { type: boolean }
+      responses:
+        '200':
+          description: The account was permanently deleted.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [deleted]
+                properties:
+                  deleted: { type: boolean }
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/ProblemNotFound'
+        '409':
+          description: Within the 30-day grace period; send force:true to override.
+        '422':
+          $ref: '#/components/responses/ValidationError'
 
   /admin/deletion-requests:
     get:
@@ -4168,10 +4323,27 @@ components:
           type: array
           items: { type: string }
 
+    AdminUserStatus:
+      type: string
+      enum: [active, invited, deletion-requested]
+
     CustomerSummary:
       type: object
       additionalProperties: false
-      required: [userId, email, tier, retentionExpiresAt, deletionRequested]
+      required:
+        [
+          userId,
+          email,
+          tier,
+          retentionExpiresAt,
+          deletionRequested,
+          status,
+          createdAt,
+          lastLoginAt,
+          explorerCount,
+          grownupCount,
+          tripCount,
+        ]
       properties:
         userId: { type: string }
         email: { type: string }
@@ -4183,6 +4355,16 @@ components:
           type: [string, 'null']
           format: date-time
         deletionRequested: { type: boolean }
+        status: { $ref: '#/components/schemas/AdminUserStatus' }
+        createdAt:
+          type: [string, 'null']
+          format: date-time
+        lastLoginAt:
+          type: [string, 'null']
+          format: date-time
+        explorerCount: { type: integer }
+        grownupCount: { type: integer }
+        tripCount: { type: integer }
 
     InviteCustomerInput:
       type: object
@@ -4191,6 +4373,24 @@ components:
       properties:
         email: { type: string, format: email }
         name: { type: string }
+
+    UpdateCustomerEmailInput:
+      type: object
+      additionalProperties: false
+      required: [email]
+      properties:
+        email: { type: string, format: email }
+
+    CreateTripInput:
+      type: object
+      additionalProperties: false
+      required: [ownerEmail, destination, tier, startDate, endDate]
+      properties:
+        ownerEmail: { type: string, format: email }
+        destination: { type: string }
+        tier: { $ref: '#/components/schemas/Tier' }
+        startDate: { type: string, format: date }
+        endDate: { type: string, format: date }
 
     ProductKind:
       type: string
