@@ -1,0 +1,485 @@
+{
+  "challenges": {
+    "savy": [
+      {
+        "day": "d1",
+        "node_ref": "",
+        "kind": "quiz",
+        "icon": "🧠",
+        "tag": "Trivia!",
+        "prompt": "In what year did Singapore gain independence, and from which country?",
+        "answer": "1965, from Malaysia — and Singapore was actually expelled, not by choice! 🇸🇬",
+        "stars": 1
+      },
+      {
+        "day": "d2",
+        "node_ref": "",
+        "kind": "quiz",
+        "icon": "🧠",
+        "tag": "Trivia!",
+        "prompt": "What does the word Sentosa mean in Malay?",
+        "answer": "Peace and tranquility — though it was originally called Pulau Belakang Mati, meaning island behind death! 😱",
+        "stars": 1
+      },
+      {
+        "day": "d3",
+        "node_ref": "",
+        "kind": "quiz",
+        "icon": "🧠",
+        "tag": "Trivia!",
+        "prompt": "The S.E.A. Aquarium showcases 10 ocean zones from two oceans. Name any 3 of the world's 5 major oceans.",
+        "answer": "Pacific, Atlantic, Indian, Southern, Arctic — 5 oceans! The Pacific alone covers a third of Earth 🌊",
+        "stars": 1
+      },
+      {
+        "day": "d4",
+        "node_ref": "",
+        "kind": "quiz",
+        "icon": "🧠",
+        "tag": "Trivia!",
+        "prompt": "Singapore is one of the world's most densely populated countries. Roughly how many people live per square kilometre?",
+        "answer": "About 8,000 per km² — the 2nd most densely populated country on Earth! 🏙️",
+        "stars": 1
+      },
+      {
+        "day": "d5",
+        "node_ref": "",
+        "kind": "quiz",
+        "icon": "🧠",
+        "tag": "Trivia!",
+        "prompt": "Night Safari was the world's first nocturnal zoo. In which decade did it open?",
+        "answer": "The 1990s — specifically 1994! It took 7 years to plan and build 🌙",
+        "stars": 1
+      },
+      {
+        "day": "d6",
+        "node_ref": "",
+        "kind": "quiz",
+        "icon": "🧠",
+        "tag": "Trivia!",
+        "prompt": "Orangutans share approximately what percentage of DNA with humans?",
+        "answer": "About 96.9%! We share 98.7% with chimps, and even 85% with mice 🧬🦧",
+        "stars": 1
+      },
+      {
+        "day": "d7",
+        "node_ref": "",
+        "kind": "quiz",
+        "icon": "🧠",
+        "tag": "Trivia!",
+        "prompt": "Singapore is one of only 3 remaining city-states in the world. Name one of the other two.",
+        "answer": "Monaco and Vatican City! Singapore is by far the largest of the three 🏙️",
+        "stars": 1
+      },
+      {
+        "day": "d8",
+        "node_ref": "",
+        "kind": "quiz",
+        "icon": "🎨",
+        "tag": "Art Trivia!",
+        "prompt": "teamLab is a world-famous digital art collective. In which country was it founded, and roughly what year?",
+        "answer": "Japan — founded in Tokyo in 2001 by Toshiyuki Inoko. Now in cities all over the world 🇯🇵🎨",
+        "stars": 1
+      },
+      {
+        "day": "d9",
+        "node_ref": "",
+        "kind": "quiz",
+        "icon": "🧠",
+        "tag": "Trivia!",
+        "prompt": "There are 18 Supertrees at Gardens by the Bay, ranging from 25m to 50m tall. What eco feature do many of them have?",
+        "answer": "Solar panels and rainwater collectors! They're not just pretty — they're sustainable 🌳⚡",
+        "stars": 1
+      },
+      {
+        "day": "d10",
+        "node_ref": "",
+        "kind": "quiz",
+        "icon": "💱",
+        "tag": "Economics!",
+        "prompt": "Singapore uses the SGD. Is it worth more or less than the Australian Dollar right now — and how can you check?",
+        "answer": "Look up the exchange rate! Around mid-2025, roughly 1 SGD ≈ $1.10 AUD, so SGD is a bit stronger 💱",
+        "stars": 1
+      },
+      {
+        "day": "d11",
+        "node_ref": "",
+        "kind": "quiz",
+        "icon": "🧠",
+        "tag": "Trivia!",
+        "prompt": "Universal Studios Singapore opened in which year, and was it the first Universal Studios in Asia?",
+        "answer": "2010 — and it was the SECOND in Asia (Japan opened in 2001). It was the first in Southeast Asia 🎥",
+        "stars": 1
+      },
+      {
+        "day": "d12",
+        "node_ref": "",
+        "kind": "quiz",
+        "icon": "🧠",
+        "tag": "Trivia!",
+        "prompt": "The Rain Vortex at Jewel Changi falls 40 metres inside a massive glass dome. Roughly how many glass panels does the dome use?",
+        "answer": "About 9,000 glass panels covering 136,000 m²! The whole building was designed by Moshe Safdie 🏗️",
+        "stars": 1
+      }
+    ],
+    "tay": [
+      {
+        "day": "d1",
+        "node_ref": "",
+        "kind": "quiz",
+        "icon": "🧠",
+        "tag": "Quiz Time!",
+        "prompt": "What ocean do planes fly over to get from Perth to Singapore?",
+        "answer": "The Indian Ocean! ✈️ You flew over it to get here!",
+        "stars": 1
+      },
+      {
+        "day": "d2",
+        "node_ref": "",
+        "kind": "quiz",
+        "icon": "🧠",
+        "tag": "Quiz Time!",
+        "prompt": "There's a famous half-lion, half-fish statue in Singapore. What is it called?",
+        "answer": "The Merlion! It's Singapore's most famous symbol 🦁🐟",
+        "stars": 1
+      },
+      {
+        "day": "d3",
+        "node_ref": "",
+        "kind": "spot",
+        "icon": "👀",
+        "tag": "Spot It!",
+        "prompt": "At the aquarium today, find and remember: one animal that glows, one that has spots, and one that looks scary. Tell Mum or Dad!",
+        "answer": "Great spotting! The ocean is full of amazing creatures 🐠🌊",
+        "stars": 1
+      },
+      {
+        "day": "d4",
+        "node_ref": "",
+        "kind": "challenge",
+        "icon": "💦",
+        "tag": "Challenge!",
+        "prompt": "While swimming today, count how many times you can jump and splash without stopping. What's your record? Tell everyone!",
+        "answer": "Splash champion! 💦 What an amazing record!",
+        "stars": 1
+      },
+      {
+        "day": "d5",
+        "node_ref": "",
+        "kind": "quiz",
+        "icon": "🧠",
+        "tag": "Quiz Time!",
+        "prompt": "What do we call animals that sleep during the day and come out at night?",
+        "answer": "Nocturnal! 🌙 Like owls, bats, and all the animals at Night Safari!",
+        "stars": 1
+      },
+      {
+        "day": "d6",
+        "node_ref": "",
+        "kind": "quiz",
+        "icon": "🧠",
+        "tag": "Quiz Time!",
+        "prompt": "Orangutans are APES not monkeys. What is one difference between an ape and a monkey?",
+        "answer": "Apes have no tail! Orangutans, gorillas and chimps are all apes 🦧",
+        "stars": 1
+      },
+      {
+        "day": "d7",
+        "node_ref": "",
+        "kind": "challenge",
+        "icon": "🏆",
+        "tag": "Challenge!",
+        "prompt": "Find 3 things in a shop today that you've never seen before. Tell someone what they are!",
+        "answer": "Great exploring! Singapore has so many unique things 🛍️",
+        "stars": 1
+      },
+      {
+        "day": "d8",
+        "node_ref": "",
+        "kind": "challenge",
+        "icon": "🎨",
+        "tag": "Art Challenge!",
+        "prompt": "After visiting teamLab, draw your own piece of glowing digital-inspired art on paper using at least 3 colours. Show Mum or Dad!",
+        "answer": "You're an artist! 🎨 teamLab would love your work!",
+        "stars": 1
+      },
+      {
+        "day": "d9",
+        "node_ref": "",
+        "kind": "quiz",
+        "icon": "🧠",
+        "tag": "Quiz Time!",
+        "prompt": "The giant glowing tree-like structures at Gardens by the Bay are called what?",
+        "answer": "Supertrees! 🌳 They're covered in plants and light up at night!",
+        "stars": 1
+      },
+      {
+        "day": "d10",
+        "node_ref": "",
+        "kind": "challenge",
+        "icon": "💰",
+        "tag": "Money Challenge!",
+        "prompt": "Find something in a shop that costs less than $3 SGD. What did you find? (Don't spend your star money yet!)",
+        "answer": "Savvy shopper! 🛍️ Great bargain hunting in Singapore!",
+        "stars": 1
+      },
+      {
+        "day": "d11",
+        "node_ref": "",
+        "kind": "challenge",
+        "icon": "🎢",
+        "tag": "Challenge!",
+        "prompt": "Before going on the biggest ride at Universal Studios, describe it to Mum or Dad — how high, how fast, and how scary out of 10?",
+        "answer": "Thrill seeker! 🎢 You're so brave!",
+        "stars": 1
+      },
+      {
+        "day": "d12",
+        "node_ref": "",
+        "kind": "quiz",
+        "icon": "🧠",
+        "tag": "Quiz Time!",
+        "prompt": "Jewel Changi Airport has the world's tallest indoor waterfall. What is it called?",
+        "answer": "The Rain Vortex! 💧 It's 40 metres tall — as tall as a 13-storey building!",
+        "stars": 1
+      }
+    ]
+  },
+  "budget": {
+    "base_currency": "SGD",
+    "home_currency": "AUD",
+    "exchange_rate": 1.1,
+    "rate_as_of": "2026-06-26",
+    "cash_budget": 175.0,
+    "daily_cash_budget": null
+  },
+  "costs": [
+    {
+      "day": "d1",
+      "node_ref": "",
+      "label": "Grab: Changi Airport to Village Hotel Sentosa",
+      "amount_base": 27.5,
+      "amount_home": 30.0,
+      "currency_base": "SGD",
+      "currency_home": "AUD",
+      "paid": false,
+      "notes": "approx S$25-30 (A$27-33), 30-40 min"
+    },
+    {
+      "day": "d2",
+      "node_ref": "",
+      "label": "Luge + Skyride (adult, multi-rides)",
+      "amount_base": 45.0,
+      "amount_home": 49.0,
+      "currency_base": "SGD",
+      "currency_home": "AUD",
+      "paid": false,
+      "notes": "approx S$45 (A$49) multi-rides"
+    },
+    {
+      "day": "d2",
+      "node_ref": "",
+      "label": "Nestopia (per child)",
+      "amount_base": 28.0,
+      "amount_home": 31.0,
+      "currency_base": "SGD",
+      "currency_home": "AUD",
+      "paid": false,
+      "notes": "approx S$28 (A$31)/child"
+    },
+    {
+      "day": "d3",
+      "node_ref": "",
+      "label": "Singapore Oceanarium (adult)",
+      "amount_base": 45.0,
+      "amount_home": 49.0,
+      "currency_base": "SGD",
+      "currency_home": "AUD",
+      "paid": false,
+      "notes": "reopened and expanded in 2025"
+    },
+    {
+      "day": "d4",
+      "node_ref": "",
+      "label": "Adventure Cove Waterpark (adult)",
+      "amount_base": 40.0,
+      "amount_home": 44.0,
+      "currency_base": "SGD",
+      "currency_home": "AUD",
+      "paid": false,
+      "notes": "cabana extra"
+    },
+    {
+      "day": "d5",
+      "node_ref": "",
+      "label": "River Wonders (adult)",
+      "amount_base": 43.0,
+      "amount_home": 47.0,
+      "currency_base": "SGD",
+      "currency_home": "AUD",
+      "paid": false,
+      "notes": ""
+    },
+    {
+      "day": "d5",
+      "node_ref": "",
+      "label": "Night Safari (adult)",
+      "amount_base": 56.0,
+      "amount_home": 61.0,
+      "currency_base": "SGD",
+      "currency_home": "AUD",
+      "paid": false,
+      "notes": "a bundle saves"
+    },
+    {
+      "day": "d5",
+      "node_ref": "",
+      "label": "Grab: Sentosa to Mandai",
+      "amount_base": 37.5,
+      "amount_home": 41.0,
+      "currency_base": "SGD",
+      "currency_home": "AUD",
+      "paid": false,
+      "notes": "approx S$35-40, 45 min"
+    },
+    {
+      "day": "d6",
+      "node_ref": "",
+      "label": "Breakfast with Orangutans (per person)",
+      "amount_base": 35.0,
+      "amount_home": null,
+      "currency_base": "SGD",
+      "currency_home": "AUD",
+      "paid": false,
+      "notes": "approx S$35pp"
+    },
+    {
+      "day": "d6",
+      "node_ref": "",
+      "label": "Rainforest Wild ASIA Wild Cavern Adventure Bundle (2 tickets, pre-paid)",
+      "amount_base": 90.0,
+      "amount_home": null,
+      "currency_base": "SGD",
+      "currency_home": "AUD",
+      "paid": true,
+      "notes": "S$90 for 2 (paid)"
+    },
+    {
+      "day": "d6",
+      "node_ref": "",
+      "label": "Grab: Mandai to Treetops Bukit Timah",
+      "amount_base": 30.0,
+      "amount_home": 33.0,
+      "currency_base": "SGD",
+      "currency_home": "AUD",
+      "paid": false,
+      "notes": ""
+    },
+    {
+      "day": "d7",
+      "node_ref": "",
+      "label": "National Orchid Garden",
+      "amount_base": 15.0,
+      "amount_home": 16.0,
+      "currency_base": "SGD",
+      "currency_home": "AUD",
+      "paid": false,
+      "notes": ""
+    },
+    {
+      "day": "d7",
+      "node_ref": "",
+      "label": "Museum of Ice Cream (adult)",
+      "amount_base": 42.0,
+      "amount_home": 46.0,
+      "currency_base": "SGD",
+      "currency_home": "AUD",
+      "paid": false,
+      "notes": ""
+    },
+    {
+      "day": "d8",
+      "node_ref": "",
+      "label": "teamLab (adult; Tay and Lenny free on Family Friday)",
+      "amount_base": 38.0,
+      "amount_home": 41.0,
+      "currency_base": "SGD",
+      "currency_home": "AUD",
+      "paid": false,
+      "notes": ""
+    },
+    {
+      "day": "d9",
+      "node_ref": "",
+      "label": "Cloud Forest + Flower Dome combo (adult)",
+      "amount_base": 53.0,
+      "amount_home": 58.0,
+      "currency_base": "SGD",
+      "currency_home": "AUD",
+      "paid": false,
+      "notes": "Supertree show and Spectra are FREE"
+    },
+    {
+      "day": "d10",
+      "node_ref": "",
+      "label": "The Line at Shangri-La buffet (adult)",
+      "amount_base": 93.0,
+      "amount_home": 101.5,
+      "currency_base": "SGD",
+      "currency_home": "AUD",
+      "paid": false,
+      "notes": "approx S$88-98; children reduced — confirm kids' rate"
+    },
+    {
+      "day": "d10",
+      "node_ref": "",
+      "label": "Grab: Orchard Road to Shangri-La",
+      "amount_base": 9.0,
+      "amount_home": null,
+      "currency_base": "SGD",
+      "currency_home": "AUD",
+      "paid": false,
+      "notes": "S$8-10"
+    },
+    {
+      "day": "d11",
+      "node_ref": "",
+      "label": "Universal Studios Singapore (adult)",
+      "amount_base": 88.0,
+      "amount_home": 96.0,
+      "currency_base": "SGD",
+      "currency_home": "AUD",
+      "paid": false,
+      "notes": ""
+    },
+    {
+      "day": "d11",
+      "node_ref": "",
+      "label": "USS Express Pass (adult, optional)",
+      "amount_base": 65.0,
+      "amount_home": null,
+      "currency_base": "SGD",
+      "currency_home": "AUD",
+      "paid": false,
+      "notes": "approx S$50-80 extra"
+    },
+    {
+      "day": "d12",
+      "node_ref": "",
+      "label": "Canopy Park, Jewel Changi",
+      "amount_base": 10.0,
+      "amount_home": 11.0,
+      "currency_base": "SGD",
+      "currency_home": "AUD",
+      "paid": false,
+      "notes": ""
+    }
+  ],
+  "reward": {
+    "profile_id": null,
+    "star_value": 3.0,
+    "currency": "SGD",
+    "star_target": 36,
+    "star_budget": 108.0
+  }
+}
