@@ -111,6 +111,16 @@ Deno.serve(async (req) => {
     // /trips
     if (seg.length === 0) {
       if (req.method === 'GET') {
+        // NOTE: no explicit .eq('user_id', userId) here by design. Two RLS
+        // policies govern this table:
+        //   1. trips_owner_all: user_id = auth.uid() OR is_admin()
+        //      → a parent sees their own trips.
+        //   2. trips_explorer_read: user_id = app.explorer_family_owner()
+        //      → a linked explorer sees the family's trips read-only.
+        //
+        // Adding .eq('user_id', userId) would break the explorer case: the
+        // explorer's auth.uid() is their own id, but trips.user_id is the
+        // parent's id. RLS is the correct and sole filter here.
         const { data, error: dbErr } = await client
           .from('trips')
           .select(SUMMARY_COLUMNS)

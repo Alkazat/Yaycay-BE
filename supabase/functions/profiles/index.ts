@@ -133,6 +133,16 @@ Deno.serve(async (req) => {
     // /profiles
     if (seg.length === 0) {
       if (req.method === 'GET') {
+        // NOTE: no explicit .eq('user_id', userId) here by design. Two RLS
+        // policies govern this table:
+        //   1. child_profiles_owner_all: user_id = auth.uid() OR is_admin()
+        //      → a parent sees their own family's profiles.
+        //   2. child_profiles_explorer_self: id = app.explorer_profile_id()
+        //      → a linked explorer sees ONLY their own single profile row.
+        //
+        // Adding .eq('user_id', userId) would break case 2: an explorer's
+        // auth.uid() is their own user id, but child_profiles.user_id holds the
+        // parent account's user id. RLS is the correct and sole filter here.
         const { data, error: dbErr } = await client
           .from('child_profiles')
           .select(PROFILE_COLUMNS)
