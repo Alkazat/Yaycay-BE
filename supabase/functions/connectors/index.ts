@@ -45,10 +45,15 @@ Deno.serve(async (req) => {
     const { client, userId } = await userContext(req);
 
     // GET /connectors
+    // Defence-in-depth: explicit owner filter in addition to RLS, since there is
+    // no explorer-read policy on connectors and a belt-and-braces eq() costs
+    // nothing. An explorer should never reach this endpoint, but if they do the
+    // explicit filter ensures they see nothing.
     if (seg.length === 0 && req.method === 'GET') {
       const { data, error: dbErr } = await client
         .from('connectors')
         .select('id, trip_id, label, scopes, last_used_at, revoked_at, created_at')
+        .eq('user_id', userId)
         .order('created_at', { ascending: false });
       if (dbErr) throw new Error(dbErr.message);
       const connectors = (data ?? []).map((c) => ({ ...c, status: statusOf(c) }));
