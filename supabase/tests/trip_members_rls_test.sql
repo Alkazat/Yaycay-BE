@@ -114,6 +114,7 @@ select throws_ok(
              'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
              '00000000-0000-0000-0000-0000000000b1') $$,
   '42501',
+  NULL,
   'explorer cannot insert a trip_members row owned by the parent (WITH CHECK blocks it)'
 );
 reset role;
