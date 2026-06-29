@@ -497,6 +497,12 @@ export interface ChildProfile {
   name: string;
   avatar?: string | null;
   age?: number | null;
+  /**
+   * ISO date of birth (YYYY-MM-DD). The FE computes the explorer's age per-trip
+   * from this value + the trip's start_date. `age` remains the fallback when
+   * date_of_birth is absent.
+   */
+  date_of_birth?: string | null;
   /** Voice / age band. Child bands: little|explorer|explorer_plus; `standard` is the parent/carer voice. */
   mode?: ExplorerMode | null;
   /** Who the profile is. Defaults to `child`. */
@@ -516,12 +522,28 @@ export interface ChildProfilesResponse {
   profiles: ChildProfile[];
 }
 
+/** Response for `GET /trips/{tripId}/members`. */
+export interface TripMembersResponse {
+  members: ChildProfile[];
+}
+
+/** Request body for `POST /trips/{tripId}/members`. */
+export interface AddTripMemberRequest {
+  /** The id of the child_profile to add to this trip's roster. */
+  profile_id: string;
+}
+
 /** Request body for `POST /profiles` (create) and `PATCH /profiles/{id}` (update). */
 export interface ChildProfileInput {
   /** Required on create; optional on update. */
   name?: string;
   avatar?: string | null;
   age?: number | null;
+  /**
+   * ISO date of birth (YYYY-MM-DD). Optional; used by the FE to compute
+   * the explorer's age per-trip rather than storing a static age value.
+   */
+  date_of_birth?: string | null;
   mode?: ExplorerMode | null;
   /** Defaults to `child` on create. */
   type?: ProfileType;

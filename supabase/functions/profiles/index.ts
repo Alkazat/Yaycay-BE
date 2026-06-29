@@ -10,12 +10,13 @@ import { userContext, UnauthorizedError } from '../_shared/user-client.ts';
 import { serviceClient } from '../_shared/service-client.ts';
 
 const PROFILE_COLUMNS =
-  'id, name, avatar, age, mode, type, pin_hash, interests, dietary, medical, created_at, updated_at';
+  'id, name, avatar, age, date_of_birth, mode, type, pin_hash, interests, dietary, medical, created_at, updated_at';
 const EXPLORER_MODES = ['little', 'standard', 'explorer', 'explorer_plus'];
 const PROFILE_TYPES = ['child', 'parent_carer'];
 
 const PIN_RE = /^\d{4}$/;
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const MAX_PIN_ATTEMPTS = 5;
 const PIN_LOCK_MINUTES = 15;
 
@@ -46,6 +47,7 @@ function toProfile(r: Record<string, unknown>): Record<string, unknown> {
     name: r.name,
     avatar: (r.avatar as string | null) ?? null,
     age: (r.age as number | null) ?? null,
+    date_of_birth: (r.date_of_birth as string | null) ?? null,
     mode: (r.mode as string | null) ?? null,
     type: (r.type as string) ?? 'child',
     // Never return the PIN hash; expose only whether a PIN is configured.
@@ -83,6 +85,16 @@ function parseProfile(
 
   if (body.avatar !== undefined) {
     out.avatar = typeof body.avatar === 'string' ? body.avatar : null;
+  }
+
+  if (body.date_of_birth !== undefined) {
+    if (body.date_of_birth === null) {
+      out.date_of_birth = null;
+    } else if (typeof body.date_of_birth !== 'string' || !ISO_DATE_RE.test(body.date_of_birth)) {
+      errs.push('date_of_birth must be an ISO date string (YYYY-MM-DD) or null');
+    } else {
+      out.date_of_birth = body.date_of_birth;
+    }
   }
 
   if (body.age !== undefined) {
