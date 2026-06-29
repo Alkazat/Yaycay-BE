@@ -55,7 +55,7 @@
         "date": { "$ref": "#/$defs/isoDate" },
         "label": { "type": "string", "maxLength": 120 },
         "summary": { "type": "string", "maxLength": 2000 },
-        "did_you_know": { "type": "string", "maxLength": 1000 },
+        "did_you_know": { "type": ["string", "null"], "maxLength": 1000 },
         "weather": { "$ref": "#/$defs/weather" },
         "hotel": { "$ref": "#/$defs/hotel" },
         "game": { "$ref": "#/$defs/game" },

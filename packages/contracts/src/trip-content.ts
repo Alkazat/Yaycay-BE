@@ -150,7 +150,7 @@ export interface Day {
   date?: string;
   label?: string;
   summary?: string;
-  did_you_know?: string;
+  did_you_know?: string | null;
   weather?: Weather;
   hotel?: Hotel;
   game?: Game;
