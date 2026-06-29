@@ -2622,6 +2622,101 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
+  /trips/{tripId}/members:
+    parameters:
+      - $ref: '#/components/parameters/TripId'
+    get:
+      operationId: listTripMembers
+      tags: [trips]
+      summary: List the profiles on this trip's roster.
+      description: >
+        Returns every `child_profile` currently on the trip's roster.
+        RLS scopes the result to the owning account; a linked explorer sees the
+        same list (read-only). The FE computes each explorer's age-per-trip from
+        `date_of_birth` + the trip's `start_date`.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: The trip member profiles.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [members]
+                properties:
+                  members:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ChildProfile'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    post:
+      operationId: addTripMember
+      tags: [trips]
+      summary: Add a profile to this trip's roster.
+      description: >
+        Adds a `child_profile` (by `profile_id`) to the trip's roster. The
+        profile must belong to the same account as the trip. Idempotent: if the
+        profile is already on the roster the call returns `200` rather than
+        inserting a duplicate.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddTripMemberRequest'
+      responses:
+        '201':
+          description: The profile that was just added to the roster.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChildProfile'
+        '200':
+          description: Profile was already on the roster; returned unchanged.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChildProfile'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /trips/{tripId}/members/{profileId}:
+    parameters:
+      - $ref: '#/components/parameters/TripId'
+      - name: profileId
+        in: path
+        required: true
+        schema:
+          type: string
+        description: The profile to remove from the trip roster.
+    delete:
+      operationId: removeTripMember
+      tags: [trips]
+      summary: Remove a profile from this trip's roster.
+      description: >
+        Removes the `(tripId, profileId)` membership row. If the profile is not
+        on the roster the call still returns `204` (idempotent).
+      security:
+        - bearerAuth: []
+      responses:
+        '204':
+          description: Member removed (or was not on the roster).
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
   /trips/{tripId}/grownups/checklist:
     parameters:
       - $ref: '#/components/parameters/TripId'
@@ -2829,6 +2924,14 @@ components:
         name: { type: string }
         avatar: { type: string, nullable: true }
         age: { type: integer, nullable: true }
+        date_of_birth:
+          type: string
+          format: date
+          nullable: true
+          description: >
+            ISO date of birth (YYYY-MM-DD). The FE computes age-per-trip from
+            this value + the trip's start_date. Falls back to the static `age`
+            field when absent.
         mode:
           oneOf: [{ $ref: '#/components/schemas/ExplorerMode' }, { type: 'null' }]
         type: { $ref: '#/components/schemas/ProfileType' }
@@ -2855,12 +2958,29 @@ components:
         name: { type: string }
         avatar: { type: string, nullable: true }
         age: { type: integer, nullable: true, minimum: 0, maximum: 18 }
+        date_of_birth:
+          type: string
+          format: date
+          nullable: true
+          description: >
+            ISO date of birth (YYYY-MM-DD). Optional. Used by the FE to
+            compute age-per-trip from DOB + the trip's start_date.
         mode:
           oneOf: [{ $ref: '#/components/schemas/ExplorerMode' }, { type: 'null' }]
         type: { $ref: '#/components/schemas/ProfileType' }
         interests: { type: array, items: { type: string } }
         dietary: { type: array, items: { type: string } }
         medical: { type: array, items: { type: string } }
+
+    AddTripMemberRequest:
+      type: object
+      additionalProperties: false
+      required: [profile_id]
+      description: Body for `POST /trips/{tripId}/members`.
+      properties:
+        profile_id:
+          type: string
+          description: The id of the child_profile to add to this trip's roster.
 
     PinRequest:
       type: object

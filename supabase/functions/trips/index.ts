@@ -1,15 +1,18 @@
 // Customer trip API:
-//   GET   /trips                 list the caller's trips (TripSummary[])  (v0.4)
-//   POST  /trips                 create a trip                           (v0.1)
-//   GET   /trips/:id             read the canonical TripContent          (v0.4)
-//   GET   /trips/:id/content     read the canonical trip_content (alias) (v0.1)
-//   PATCH /trips/:id/content     replace trip_content (schema-validated) (v0.1)
-//   POST  /trips/:id/plan/chat   use-our-AI planning chat (SSE stream)  (v0.3, tier=ours)
-//   POST  /trips/:id/ingest      receipt/photo/note -> patched content  (v0.3, paid)
-//   GET   /trips/:id/challenges  per-child challenges (read)             (v0.34)
-//   GET   /trips/:id/budget      cash envelope + FX (read)               (v0.34)
-//   GET   /trips/:id/costs       line-item costs (read)                  (v0.34)
-//   GET   /trips/:id/rewards     star economy config (read)             (v0.34)
+//   GET   /trips                       list the caller's trips (TripSummary[])  (v0.4)
+//   POST  /trips                       create a trip                           (v0.1)
+//   GET   /trips/:id                   read the canonical TripContent          (v0.4)
+//   GET   /trips/:id/content           read the canonical trip_content (alias) (v0.1)
+//   PATCH /trips/:id/content           replace trip_content (schema-validated) (v0.1)
+//   POST  /trips/:id/plan/chat         use-our-AI planning chat (SSE stream)  (v0.3, tier=ours)
+//   POST  /trips/:id/ingest            receipt/photo/note -> patched content  (v0.3, paid)
+//   GET   /trips/:id/challenges        per-child challenges (read)             (v0.34)
+//   GET   /trips/:id/budget            cash envelope + FX (read)               (v0.34)
+//   GET   /trips/:id/costs             line-item costs (read)                  (v0.34)
+//   GET   /trips/:id/rewards           star economy config (read)             (v0.34)
+//   GET   /trips/:id/members           trip roster (ChildProfile[])           (v0.35)
+//   POST  /trips/:id/members           add a profile to the roster            (v0.35)
+//   DELETE /trips/:id/members/:pid     remove a profile from the roster       (v0.35)
 //
 // Runs as the authenticated caller; Row-Level Security enforces ownership.
 // The AI surfaces additionally log an ai_jobs row and honour the daily cap.
@@ -389,6 +392,19 @@ Deno.serve(async (req) => {
     if (seg.length === 2 && seg[1] === 'rewards') {
       if (req.method === 'GET') return await handleRewardsGet(client, tripId);
       return error('method_not_allowed', 'Use GET.', 405);
+    }
+
+    // /trips/:id/members - trip roster (GET list, POST add).
+    if (seg.length === 2 && seg[1] === 'members') {
+      if (req.method === 'GET') return await handleMembersGet(client, tripId);
+      if (req.method === 'POST') return await handleMemberAdd(client, userId, tripId, req);
+      return error('method_not_allowed', 'Use GET or POST.', 405);
+    }
+
+    // /trips/:id/members/:profileId - DELETE to remove from roster.
+    if (seg.length === 3 && seg[1] === 'members') {
+      if (req.method === 'DELETE') return await handleMemberRemove(client, tripId, seg[2]);
+      return error('method_not_allowed', 'Use DELETE.', 405);
     }
 
     // /trips/:id/features - per-explorer feature toggles (sparse overrides on
@@ -1584,4 +1600,128 @@ function parseHint(raw: unknown): { day_id?: string; moment_id?: string } | unde
   if (typeof o.day_id === 'string') hint.day_id = o.day_id;
   if (typeof o.moment_id === 'string') hint.moment_id = o.moment_id;
   return hint.day_id || hint.moment_id ? hint : undefined;
+}
+
+// ----- Trip membership roster ------------------------------------------------
+// GET  /trips/:id/members          -> { members: ChildProfile[] }
+// POST /trips/:id/members          body { profile_id } -> ChildProfile (201 | 200)
+// DELETE /trips/:id/members/:pid   -> 204
+//
+// RLS on trip_members scopes to the owning account; a linked explorer gets
+// read-only access via the trip_members_explorer_read policy (same approach as
+// trips_explorer_read in 0035).
+
+// Columns returned for a profile in the members context (mirrors profiles function).
+const MEMBER_PROFILE_COLUMNS =
+  'id, name, avatar, age, date_of_birth, mode, type, pin_hash, interests, dietary, medical, created_at, updated_at';
+
+function toMemberProfile(r: Record<string, unknown>): Record<string, unknown> {
+  return {
+    id: r.id,
+    name: r.name,
+    avatar: (r.avatar as string | null) ?? null,
+    age: (r.age as number | null) ?? null,
+    date_of_birth: (r.date_of_birth as string | null) ?? null,
+    mode: (r.mode as string | null) ?? null,
+    type: (r.type as string) ?? 'child',
+    pin_set: r.pin_hash != null,
+    interests: Array.isArray(r.interests) ? r.interests : [],
+    dietary: Array.isArray(r.dietary) ? r.dietary : [],
+    medical: Array.isArray(r.medical) ? r.medical : [],
+    created_at: r.created_at,
+    updated_at: r.updated_at,
+  };
+}
+
+// GET /trips/:id/members - list all profiles on this trip's roster.
+// RLS on trip_members gates the query to the owning account (or linked explorer).
+async function handleMembersGet(client: UserClient, tripId: string): Promise<Response> {
+  // Confirm the trip is visible to the caller (404 if not).
+  const { data: trip } = await client.from('trips').select('id').eq('id', tripId).maybeSingle();
+  if (!trip) throw new NotFoundError();
+
+  // Join trip_members -> child_profiles, selecting the full profile columns.
+  // PostgREST embeds child_profiles via the FK on trip_members.profile_id.
+  const { data, error: dbErr } = await client
+    .from('trip_members')
+    .select(`profile_id, child_profiles(${MEMBER_PROFILE_COLUMNS})`)
+    .eq('trip_id', tripId);
+  if (dbErr) throw new Error(dbErr.message);
+
+  const members = (data ?? []).flatMap((row) => {
+    const prof = (row as Record<string, unknown>).child_profiles;
+    if (!prof) return [];
+    const r = Array.isArray(prof) ? prof[0] : prof;
+    return r ? [toMemberProfile(r as Record<string, unknown>)] : [];
+  });
+
+  return json({ members });
+}
+
+// POST /trips/:id/members { profile_id } - add a profile to the trip roster.
+// Idempotent: on conflict (trip_id, profile_id) returns the profile as-is (200).
+async function handleMemberAdd(
+  client: UserClient,
+  userId: string,
+  tripId: string,
+  req: Request,
+): Promise<Response> {
+  const body = await readJson(req);
+  if (typeof body.profile_id !== 'string' || body.profile_id.trim().length === 0) {
+    throw new ValidationError(['profile_id is required']);
+  }
+  const profileId = (body.profile_id as string).trim();
+
+  // Assert the trip belongs to the caller (RLS would hide it anyway, but we
+  // want a clear 404 rather than an RLS-silent empty result).
+  const { data: trip } = await client.from('trips').select('id').eq('id', tripId).maybeSingle();
+  if (!trip) throw new NotFoundError();
+
+  // Assert the profile belongs to the same account (same user_id).
+  const { data: profile } = await client
+    .from('child_profiles')
+    .select(MEMBER_PROFILE_COLUMNS)
+    .eq('id', profileId)
+    .maybeSingle();
+  if (!profile) throw new NotFoundError();
+
+  // Check for an existing membership (idempotent).
+  const { data: existing } = await client
+    .from('trip_members')
+    .select('profile_id')
+    .eq('trip_id', tripId)
+    .eq('profile_id', profileId)
+    .maybeSingle();
+  if (existing) {
+    // Already a member; return the profile unchanged with 200.
+    return json(toMemberProfile(profile as Record<string, unknown>), 200);
+  }
+
+  const { error: insErr } = await client
+    .from('trip_members')
+    .insert({ trip_id: tripId, profile_id: profileId, user_id: userId });
+  if (insErr) throw new Error(insErr.message);
+
+  return json(toMemberProfile(profile as Record<string, unknown>), 201);
+}
+
+// DELETE /trips/:id/members/:profileId - remove a profile from the trip roster.
+// Idempotent: if the row is absent the delete is a no-op and we still return 204.
+async function handleMemberRemove(
+  client: UserClient,
+  tripId: string,
+  profileId: string,
+): Promise<Response> {
+  // Confirm the trip is visible to the caller.
+  const { data: trip } = await client.from('trips').select('id').eq('id', tripId).maybeSingle();
+  if (!trip) throw new NotFoundError();
+
+  const { error: dbErr } = await client
+    .from('trip_members')
+    .delete()
+    .eq('trip_id', tripId)
+    .eq('profile_id', profileId);
+  if (dbErr) throw new Error(dbErr.message);
+
+  return new Response(null, { status: 204 });
 }
