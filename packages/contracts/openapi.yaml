@@ -4751,7 +4751,20 @@ components:
     CustomerSummary:
       type: object
       additionalProperties: false
-      required: [userId, email, tier, retentionExpiresAt, deletionRequested]
+      required:
+        [
+          userId,
+          email,
+          tier,
+          retentionExpiresAt,
+          deletionRequested,
+          status,
+          createdAt,
+          lastLoginAt,
+          explorerCount,
+          grownupCount,
+          tripCount,
+        ]
       properties:
         userId: { type: string }
         email: { type: string }
@@ -4763,6 +4776,16 @@ components:
           type: [string, 'null']
           format: date-time
         deletionRequested: { type: boolean }
+        status: { $ref: '#/components/schemas/AdminUserStatus' }
+        createdAt:
+          type: [string, 'null']
+          format: date-time
+        lastLoginAt:
+          type: [string, 'null']
+          format: date-time
+        explorerCount: { type: integer }
+        grownupCount: { type: integer }
+        tripCount: { type: integer }
 
     AdminUserRow:
       allOf:

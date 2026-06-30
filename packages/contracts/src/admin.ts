@@ -236,6 +236,45 @@ export interface CreateTripInput {
 }
 
 /**
+ * A row of the admin Users table (GET /admin/customers): the thin summary plus
+ * the operational columns an administrator needs at a glance.
+ */
+export interface AdminUserRow extends CustomerSummary {
+  /** Derived lifecycle for the Users table. */
+  status: AdminUserStatus;
+  /** Account creation time ("user since"); null if unknown. */
+  createdAt: string | null;
+  /** Last successful sign-in; null if never (i.e. still `invited`). */
+  lastLoginAt: string | null;
+  /** Child (explorer) profiles on the account. */
+  explorerCount: number;
+  /** Adult (parent/carer) travellers on the account. */
+  grownupCount: number;
+  /** Trips owned by the account. */
+  tripCount: number;
+}
+
+/** Change a customer's sign-in email (admin). Identity stays magic-link + 2FA. */
+export interface UpdateCustomerEmailInput {
+  email: string;
+}
+
+/**
+ * Admin-created trip with the tier entitlement granted directly (no Stripe).
+ * This is an admin-only path; the normal app still purchases through checkout.
+ */
+export interface CreateTripInput {
+  ownerEmail: string;
+  destination: string;
+  /** Granted directly: 'ours' (we plan) or 'byo' (bring-your-own AI). */
+  tier: TripTier;
+  /** ISO date (YYYY-MM-DD). */
+  startDate: string;
+  /** ISO date (YYYY-MM-DD). */
+  endDate: string;
+}
+
+/**
  * Admin-initiated onboarding of a customer. Identity is invite-only (magic-link
  * + mandatory 2FA, no admin-set passwords), so this provisions a pending account
  * and emails a sign-in link; the person completes setup (2FA) on first sign-in.
