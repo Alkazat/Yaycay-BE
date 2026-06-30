@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Yaycay API
-  version: 0.34.0
+  version: 0.35.0
   description: >
     Yaycay back-end HTTP API. The v0.1 surface (Phase 0) is the free-demo
     generator, signup/lead capture, the 2FA verify step, and trip + trip-content
@@ -1466,11 +1466,11 @@ paths:
         - $ref: '#/components/parameters/Limit'
       responses:
         '200':
-          description: A page of customer summaries.
+          description: A page of enriched user rows.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/CustomerSummaryPage'
+                $ref: '#/components/schemas/AdminUserRowPage'
         '403':
           $ref: '#/components/responses/Forbidden'
 
@@ -4787,6 +4787,32 @@ components:
         grownupCount: { type: integer }
         tripCount: { type: integer }
 
+    AdminUserRow:
+      allOf:
+        - $ref: '#/components/schemas/CustomerSummary'
+        - type: object
+          additionalProperties: false
+          required:
+            [
+              status,
+              createdAt,
+              lastLoginAt,
+              explorerCount,
+              grownupCount,
+              tripCount,
+            ]
+          properties:
+            status: { $ref: '#/components/schemas/AdminUserStatus' }
+            createdAt:
+              type: [string, 'null']
+              format: date-time
+            lastLoginAt:
+              type: [string, 'null']
+              format: date-time
+            explorerCount: { type: integer }
+            grownupCount: { type: integer }
+            tripCount: { type: integer }
+
     InviteCustomerInput:
       type: object
       additionalProperties: false
@@ -5214,6 +5240,16 @@ components:
         items:
           type: array
           items: { $ref: '#/components/schemas/CustomerSummary' }
+        nextCursor: { type: [string, 'null'] }
+
+    AdminUserRowPage:
+      type: object
+      additionalProperties: false
+      required: [items, nextCursor]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/AdminUserRow' }
         nextCursor: { type: [string, 'null'] }
 
     ContentReviewPage:
