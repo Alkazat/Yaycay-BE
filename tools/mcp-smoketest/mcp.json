@@ -1,0 +1,30 @@
+{
+  "//": "Draft MCP controller config for Yaycay backing services.",
+  "//creds": "Provide the referenced env vars as SECRETS (env store), never inline.",
+  "//readonly": "Start Supabase in --read-only; drop the flag once read tests pass.",
+  "mcpServers": {
+    "supabase-staging": {
+      "command": "npx",
+      "args": [
+        "-y", "@supabase/mcp-server-supabase@latest",
+        "--project-ref=srpipqrxggmfeagomvnk",
+        "--read-only"
+      ],
+      "env": { "SUPABASE_ACCESS_TOKEN": "${SUPABASE_PAT}" }
+    },
+    "supabase-prod": {
+      "command": "npx",
+      "args": [
+        "-y", "@supabase/mcp-server-supabase@latest",
+        "--project-ref=nzmjkbjtcjthjwdscjrj",
+        "--read-only"
+      ],
+      "env": { "SUPABASE_ACCESS_TOKEN": "${SUPABASE_PAT}" }
+    },
+    "stripe": {
+      "command": "npx",
+      "args": ["-y", "@stripe/mcp", "--tools=all"],
+      "env": { "STRIPE_SECRET_KEY": "${STRIPE_TEST_KEY}" }
+    }
+  }
+}
