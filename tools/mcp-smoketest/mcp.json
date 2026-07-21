@@ -1,14 +1,17 @@
 {
-  "//": "Draft MCP controller config for Yaycay backing services.",
+  "//": "MCP controller config for Yaycay backing services. Verified working in the web env.",
   "//creds": "Provide the referenced env vars as SECRETS (env store), never inline.",
-  "//readonly": "Start Supabase in --read-only; drop the flag once read tests pass.",
+  "//readonly": "Supabase stays --read-only; drop the flag only for an explicitly write-approved project.",
+  "//supabase-features": "Scoped to --features=database. The default set includes a docs group that fetches the Supabase Content API GraphQL schema at tools/list time, which this env egress blocks (403). Re-add docs only if content-api egress is opened.",
+  "//stripe-version": "Pinned to @stripe/mcp@0.2.5 which runs tools locally against api.stripe.com. @0.3.x proxies to the hosted mcp.stripe.com, which this env egress blocks (403). Use latest only if mcp.stripe.com is opened.",
   "mcpServers": {
     "supabase-staging": {
       "command": "npx",
       "args": [
         "-y", "@supabase/mcp-server-supabase@latest",
         "--project-ref=srpipqrxggmfeagomvnk",
-        "--read-only"
+        "--read-only",
+        "--features=database"
       ],
       "env": { "SUPABASE_ACCESS_TOKEN": "${SUPABASE_PAT}" }
     },
@@ -17,13 +20,14 @@
       "args": [
         "-y", "@supabase/mcp-server-supabase@latest",
         "--project-ref=nzmjkbjtcjthjwdscjrj",
-        "--read-only"
+        "--read-only",
+        "--features=database"
       ],
       "env": { "SUPABASE_ACCESS_TOKEN": "${SUPABASE_PAT}" }
     },
     "stripe": {
       "command": "npx",
-      "args": ["-y", "@stripe/mcp", "--tools=all"],
+      "args": ["-y", "@stripe/mcp@0.2.5", "--tools=all"],
       "env": { "STRIPE_SECRET_KEY": "${STRIPE_TEST_KEY}" }
     }
   }

@@ -52,3 +52,22 @@ flag once read tests pass to enable writes. Validate staging before prod.
 
 Safety: keep prod service-role at read-only unless prod write is explicitly
 wanted; use Stripe **test** keys; secrets come from the env store, not chat.
+
+## 5. Environment notes (verified in the web env)
+
+Two hosts beyond the app + api.stripe.com + api.supabase.com set are needed for
+the full default MCP configs. Until they are on the egress allowlist:
+
+- **Supabase MCP**: run with `--features=database`. The default feature set
+  includes a `docs` group that fetches the Supabase Content API GraphQL schema
+  during `tools/list`; that host is blocked (403) and fails the handshake.
+  Scoping to `database` gives the read/write DB tools with no blocked fetch.
+- **Stripe MCP**: pin `@stripe/mcp@0.2.5`, which runs tools locally against
+  `api.stripe.com`. From `@0.3.x` the package proxies to the hosted
+  `mcp.stripe.com`, which is blocked (403). The direct Stripe REST API on
+  `api.stripe.com` works with the test key regardless.
+
+Also note: DDL for the `_smoketest` scratch table cannot go through the
+service-role key (PostgREST does no DDL). Create it via the Management API
+query endpoint with `SUPABASE_PAT`, or in the SQL editor, before running
+`02-supabase-rw.sh`.
