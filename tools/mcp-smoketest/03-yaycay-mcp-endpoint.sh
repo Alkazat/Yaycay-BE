@@ -15,7 +15,7 @@ curl -s "${hdr[@]}" "${BASE}/catalogue" -w "\n  HTTP %{http_code}\n"
 
 echo "== Public: demo-generate-day (deterministic fallback, no AI key needed) =="
 curl -s -X POST "${hdr[@]}" -H "Content-Type: application/json" \
-  -d '{"destination":"Adelaide","date":"2026-08-01","party":{"adults":2,"children":[8]}}' \
+  -d '{"destination":"Adelaide","date":"2026-08-01","child":{"name":"Mia","age":8,"mode":"explorer","interests":["dinosaurs"]}}' \
   "${BASE}/demo-generate-day" -w "\n  HTTP %{http_code}\n"
 
 if [ -n "$CONNECTOR_TOKEN" ]; then
